@@ -1,8 +1,8 @@
 import streamlit as st
+from PIL import Image
+from rembg import remove
 import zipfile
 import io
-
-from utils import process_image
 
 st.set_page_config(
     page_title="Bulk Photo Processor",
@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("📸 Bulk Photo Processor")
 
 st.write(
-    "Resize, Change Background, Convert Format and Download ZIP"
+    "Resize Images, Change Background Color, Convert Format and Download ZIP"
 )
 
 uploaded_files = st.file_uploader(
@@ -67,6 +67,11 @@ compression = st.selectbox(
     ]
 )
 
+remove_background = st.checkbox(
+    "Replace Existing Background (AI)",
+    value=True
+)
+
 if compression == "High Quality":
     quality = 95
 elif compression == "Medium":
@@ -78,14 +83,11 @@ if uploaded_files:
 
     st.subheader("Preview")
 
-    preview_cols = st.columns(4)
+    cols = st.columns(4)
 
     for i, file in enumerate(uploaded_files):
-        with preview_cols[i % 4]:
-            st.image(
-                file,
-                use_container_width=True
-            )
+        with cols[i % 4]:
+            st.image(file, use_container_width=True)
             st.caption(file.name)
 
     if st.button("🚀 Process Images"):
@@ -98,30 +100,84 @@ if uploaded_files:
             zipfile.ZIP_DEFLATED
         ) as zipf:
 
-            for file in uploaded_files:
+            progress = st.progress(0)
 
-                processed = process_image(
-                    file,
-                    width,
-                    height,
-                    bg_color,
-                    output_format,
-                    quality
-                )
+            for index, file in enumerate(uploaded_files):
 
-                filename = (
-                    file.name.rsplit(".", 1)[0]
-                    + "."
-                    + output_format.lower()
-                )
+                try:
 
-                zipf.writestr(
-                    filename,
-                    processed.getvalue()
-                )
+                    image = Image.open(file)
+
+                    if remove_background:
+
+                        image = remove(image)
+                        image = image.convert("RGBA")
+
+                        new_bg = Image.new(
+                            "RGBA",
+                            image.size,
+                            bg_color
+                        )
+
+                        image = Image.alpha_composite(
+                            new_bg,
+                            image
+                        )
+
+                    else:
+
+                        image = image.convert("RGB")
+
+                    image = image.resize(
+                        (
+                            int(width),
+                            int(height)
+                        )
+                    )
+
+                    if output_format == "JPG":
+                        image = image.convert("RGB")
+
+                    img_bytes = io.BytesIO()
+
+                    save_format = (
+                        "JPEG"
+                        if output_format == "JPG"
+                        else output_format
+                    )
+
+                    image.save(
+                        img_bytes,
+                        format=save_format,
+                        quality=quality
+                    )
+
+                    img_bytes.seek(0)
+
+                    filename = (
+                        file.name.rsplit(".", 1)[0]
+                        + "."
+                        + output_format.lower()
+                    )
+
+                    zipf.writestr(
+                        filename,
+                        img_bytes.getvalue()
+                    )
+
+                    progress.progress(
+                        (index + 1)
+                        / len(uploaded_files)
+                    )
+
+                except Exception as e:
+
+                    st.error(
+                        f"Error processing {file.name}: {e}"
+                    )
 
         st.success(
-            "All Images Processed Successfully!"
+            "✅ All Images Processed Successfully!"
         )
 
         st.download_button(
