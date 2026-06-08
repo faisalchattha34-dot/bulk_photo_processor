@@ -1,188 +1,147 @@
+
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 from rembg import remove
 import zipfile
 import io
 
-st.set_page_config(
-    page_title="Bulk Photo Processor",
-    layout="wide"
+st.set_page_config(page_title="Bulk Photo Processor V2", layout="wide")
+
+def compress_to_target(img, target_kb, fmt):
+    quality = 95
+    while quality >= 10:
+        temp = io.BytesIO()
+        save_format = "JPEG" if fmt == "JPG" else fmt
+        save_kwargs = {"format": save_format}
+        if save_format in ["JPEG", "WEBP"]:
+            save_kwargs["quality"] = quality
+        img.save(temp, **save_kwargs)
+        if len(temp.getvalue()) / 1024 <= target_kb:
+            temp.seek(0)
+            return temp
+        quality -= 5
+    temp.seek(0)
+    return temp
+
+st.title("📸 Bulk Photo Processor V2")
+
+mode = st.radio("Input Mode", ["Upload Images", "Camera"])
+
+uploaded_files = []
+if mode == "Upload Images":
+    uploaded_files = st.file_uploader(
+        "Upload Images",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True
+    ) or []
+else:
+    cam = st.camera_input("Take a Photo")
+    if cam:
+        uploaded_files = [cam]
+
+preset = st.selectbox(
+    "Preset",
+    ["Custom", "Passport (300x300)", "NADRA (400x400)",
+     "University Admission (200x200)", "Job Application (300x400)"]
 )
 
-st.title("📸 Bulk Photo Processor")
+default_w, default_h = 300, 300
+if preset == "NADRA (400x400)":
+    default_w, default_h = 400, 400
+elif preset == "University Admission (200x200)":
+    default_w, default_h = 200, 200
+elif preset == "Job Application (300x400)":
+    default_w, default_h = 300, 400
 
-st.write(
-    "Resize Images, Change Background Color, Convert Format and Download ZIP"
-)
-
-uploaded_files = st.file_uploader(
-    "Upload Images",
-    type=["png", "jpg", "jpeg", "webp"],
-    accept_multiple_files=True
-)
-
-col1, col2 = st.columns(2)
-
-with col1:
-    width = st.number_input(
-        "Width",
-        min_value=50,
-        value=300
-    )
-
-with col2:
-    height = st.number_input(
-        "Height",
-        min_value=50,
-        value=300
-    )
+c1, c2 = st.columns(2)
+with c1:
+    width = st.number_input("Width", min_value=50, value=default_w)
+with c2:
+    height = st.number_input("Height", min_value=50, value=default_h)
 
 bg_color = st.selectbox(
     "Background Color",
-    [
-        "white",
-        "blue",
-        "red",
-        "green",
-        "yellow",
-        "black"
-    ]
+    ["white", "blue", "red", "green", "yellow", "black"]
 )
 
-output_format = st.selectbox(
-    "Output Format",
-    [
-        "JPG",
-        "PNG",
-        "WEBP"
-    ]
+output_format = st.selectbox("Output Format", ["JPG", "PNG", "WEBP"])
+
+target_size = st.selectbox(
+    "Target File Size",
+    ["No Limit", "20 KB", "50 KB", "100 KB"]
 )
 
-compression = st.selectbox(
-    "Compression Level",
-    [
-        "High Quality",
-        "Medium",
-        "Low Size"
-    ]
-)
+enhance_image = st.checkbox("Enhance & Sharpen Image")
+remove_background = st.checkbox("Replace Existing Background (AI)", value=True)
 
-remove_background = st.checkbox(
-    "Replace Existing Background (AI)",
-    value=True
-)
-
-if compression == "High Quality":
-    quality = 95
-elif compression == "Medium":
-    quality = 75
-else:
-    quality = 50
+prefix = st.text_input("Batch Rename Prefix", "photo")
 
 if uploaded_files:
-
-    st.subheader("Preview")
-
+    st.subheader("Original Images")
     cols = st.columns(4)
 
-    for i, file in enumerate(uploaded_files):
+    for i, f in enumerate(uploaded_files):
         with cols[i % 4]:
-            st.image(file, use_container_width=True)
-            st.caption(file.name)
+            st.image(f, use_container_width=True)
 
     if st.button("🚀 Process Images"):
-
         zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(
-            zip_buffer,
-            "w",
-            zipfile.ZIP_DEFLATED
-        ) as zipf:
-
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
             progress = st.progress(0)
 
-            for index, file in enumerate(uploaded_files):
+            preview_done = False
 
-                try:
+            for idx, file in enumerate(uploaded_files):
+                image = Image.open(file)
 
-                    image = Image.open(file)
+                if remove_background:
+                    image = remove(image)
+                    image = image.convert("RGBA")
+                    new_bg = Image.new("RGBA", image.size, bg_color)
+                    image = Image.alpha_composite(new_bg, image)
+                else:
+                    image = image.convert("RGB")
 
-                    if remove_background:
+                image = image.resize((int(width), int(height)))
 
-                        image = remove(image)
-                        image = image.convert("RGBA")
+                if enhance_image:
+                    image = image.filter(ImageFilter.SHARPEN)
+                    image = ImageEnhance.Sharpness(image).enhance(2.0)
+                    image = ImageEnhance.Contrast(image).enhance(1.2)
 
-                        new_bg = Image.new(
-                            "RGBA",
-                            image.size,
-                            bg_color
-                        )
+                if output_format == "JPG":
+                    image = image.convert("RGB")
 
-                        image = Image.alpha_composite(
-                            new_bg,
-                            image
-                        )
+                if not preview_done:
+                    st.subheader("Processed Preview")
+                    st.image(image, width=250)
+                    preview_done = True
 
-                    else:
-
-                        image = image.convert("RGB")
-
-                    image = image.resize(
-                        (
-                            int(width),
-                            int(height)
-                        )
-                    )
-
-                    if output_format == "JPG":
-                        image = image.convert("RGB")
-
+                if target_size == "20 KB":
+                    img_bytes = compress_to_target(image, 20, output_format)
+                elif target_size == "50 KB":
+                    img_bytes = compress_to_target(image, 50, output_format)
+                elif target_size == "100 KB":
+                    img_bytes = compress_to_target(image, 100, output_format)
+                else:
                     img_bytes = io.BytesIO()
-
-                    save_format = (
-                        "JPEG"
-                        if output_format == "JPG"
-                        else output_format
-                    )
-
-                    image.save(
-                        img_bytes,
-                        format=save_format,
-                        quality=quality
-                    )
-
+                    save_format = "JPEG" if output_format == "JPG" else output_format
+                    save_kwargs = {"format": save_format}
+                    if save_format in ["JPEG", "WEBP"]:
+                        save_kwargs["quality"] = 95
+                    image.save(img_bytes, **save_kwargs)
                     img_bytes.seek(0)
 
-                    filename = (
-                        file.name.rsplit(".", 1)[0]
-                        + "."
-                        + output_format.lower()
-                    )
+                filename = f"{prefix}_{idx+1}.{output_format.lower()}"
+                zipf.writestr(filename, img_bytes.getvalue())
 
-                    zipf.writestr(
-                        filename,
-                        img_bytes.getvalue()
-                    )
+                progress.progress((idx + 1) / len(uploaded_files))
 
-                    progress.progress(
-                        (index + 1)
-                        / len(uploaded_files)
-                    )
-
-                except Exception as e:
-
-                    st.error(
-                        f"Error processing {file.name}: {e}"
-                    )
-
-        st.success(
-            "✅ All Images Processed Successfully!"
-        )
-
+        st.success("✅ Processing Complete")
         st.download_button(
-            label="📥 Download ZIP",
-            data=zip_buffer.getvalue(),
+            "📥 Download ZIP",
+            zip_buffer.getvalue(),
             file_name="processed_images.zip",
             mime="application/zip"
         )
