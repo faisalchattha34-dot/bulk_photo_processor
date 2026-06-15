@@ -288,8 +288,15 @@ if images and st.button("PROCESS"):
             preview_area.image(img, caption=f"Processed {i+1}", width=220)
 
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
-            buffer.seek(0)
+            
+            compressed = smart_compress(img, target_kb)
+
+if isinstance(compressed, io.BytesIO):
+    buffer = compressed
+else:
+    buffer = io.BytesIO()
+    compressed.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
+    buffer.seek(0)
 
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
 
