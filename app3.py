@@ -11,13 +11,13 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS FREE", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
 # =========================
 cookies = EncryptedCookieManager(
-    prefix="master_saas",
+    prefix="photo_saas",
     password="super_secure_key"
 )
 
@@ -37,11 +37,11 @@ def load_users():
         return {
             "admin": {
                 "password": hashlib.sha256("admin123".encode()).hexdigest(),
-                "plan": "pro"
+                "email": "admin@demo.com"
             },
             "user": {
                 "password": hashlib.sha256("user123".encode()).hexdigest(),
-                "plan": "free"
+                "email": "user@demo.com"
             }
         }
 
@@ -97,8 +97,7 @@ def register():
         else:
             USERS[u] = {
                 "password": hash_pass(p),
-                "email": e,
-                "plan": "free"
+                "email": e
             }
             save_users()
             st.success("Account created")
@@ -147,9 +146,8 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-user = st.session_state.user
-st.title("🚀 BULK PHOTO SaaS (FREE MODE)")
-st.success(f"Welcome {user}")
+st.title("📸 Bulk Photo SaaS")
+st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
     logout()
@@ -164,12 +162,12 @@ col1, col2 = st.columns(2)
 with col1:
     files = st.file_uploader(
         "Upload Images",
-        type=["png","jpg","jpeg","webp"],
+        type=["png", "jpg", "jpeg", "webp"],
         accept_multiple_files=True
     )
 
 with col2:
-    with st.expander("📷 Camera Capture", expanded=False):
+    with st.expander("📷 Camera", expanded=False):
         camera = st.camera_input("Take Photo")
 
 images = []
@@ -181,4 +179,88 @@ if camera:
 # =========================
 # SETTINGS
 # =========================
-st.subheader("
+st.subheader("Settings")
+
+preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "HD"])
+
+sizes = {
+    "Passport": (300, 300),
+    "NADRA": (400, 400),
+    "HD": (800, 1000),
+    "Custom": (300, 300)
+}
+
+w, h = sizes[preset]
+
+width = st.number_input("Width", value=w)
+height = st.number_input("Height", value=h)
+
+output_format = st.selectbox("Format", ["JPG", "PNG", "WEBP"])
+remove_bg = st.checkbox("Remove Background", True)
+enhance = st.checkbox("Enhance Image", True)
+prefix = st.text_input("File Prefix", "photo")
+
+# =========================
+# PROCESS
+# =========================
+if images and st.button("PROCESS"):
+
+    zip_buffer = io.BytesIO()
+    progress = st.progress(0)
+
+    with zipfile.ZipFile(zip_buffer, "w") as zipf:
+
+        preview = False
+
+        for i, file in enumerate(images):
+
+            img = Image.open(file)
+
+            if remove_bg:
+                out = remove(img)
+                img = Image.open(io.BytesIO(out)).convert("RGBA")
+            else:
+                img = img.convert("RGB")
+
+            img = img.resize((width, height))
+
+            if enhance:
+                img = ImageEnhance.Sharpness(img).enhance(2.5)
+                img = ImageEnhance.Contrast(img).enhance(1.3)
+                img = ImageEnhance.Brightness(img).enhance(1.05)
+                img = img.filter(ImageFilter.UnsharpMask(2, 150, 3))
+
+            if not preview:
+                st.image(img, width=200)
+                preview = True
+
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG")
+            buffer.seek(0)
+
+            zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
+
+            progress.progress((i + 1) / len(images))
+
+    st.session_state.history.append({
+        "user": st.session_state.user,
+        "files": len(images),
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
+
+    st.success("Processing Complete")
+
+    st.download_button(
+        "Download ZIP",
+        zip_buffer.getvalue(),
+        file_name="output.zip"
+    )
+
+# =========================
+# HISTORY
+# =========================
+st.divider()
+st.subheader("History")
+
+for h in reversed(st.session_state.history):
+    st.write(h)
