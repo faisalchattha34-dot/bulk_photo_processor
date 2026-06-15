@@ -4,6 +4,15 @@ from rembg import remove
 import zipfile
 import io
 from datetime import datetime
+from streamlit_cookies_manager import EncryptedCookieManager
+
+cookies = EncryptedCookieManager(
+    prefix="photo_saas",
+    password="my_secret_password"
+)
+
+if not cookies.ready():
+    st.stop()
 
 st.set_page_config(page_title="Bulk Photo SaaS V5.4", layout="wide")
 
@@ -29,6 +38,16 @@ if "page" not in st.session_state:
     st.session_state.page = "login"
 
 USERS = st.session_state.USERS
+# AUTO LOGIN FROM COOKIE
+
+if not st.session_state.user:
+
+    saved_user = cookies.get("user")
+
+    if saved_user and saved_user in USERS:
+
+        st.session_state.user = saved_user
+        st.session_state.credits = USERS[saved_user]["credits"]
 
 
 # =========================
@@ -70,11 +89,17 @@ def login():
 
     with col1:
         if st.button("Login"):
-            if username in USERS and USERS[username]["password"] == password:
-                st.session_state.user = username
-                st.session_state.credits = USERS[username]["credits"]
-                st.success("Login Success")
-                st.rerun()
+          if username in USERS and USERS[username]["password"] == password:
+
+    st.session_state.user = username
+    st.session_state.credits = USERS[username]["credits"]
+
+    cookies["user"] = username
+    cookies.save()
+
+    st.success("Login Success")
+    st.rerun()
+               
             else:
                 st.error("Invalid credentials")
 
@@ -88,11 +113,22 @@ def login():
 # LOGOUT
 # =========================
 def logout():
+
+    cookies["user"] = ""
+    cookies.save()
+
     st.session_state.user = None
     st.session_state.credits = 0
-    st.session_state.page = "login"
-    st.rerun()
 
+    st.rerun()
+if not st.session_state.user:
+
+    saved_user = cookies.get("user")
+
+    if saved_user and saved_user in USERS:
+
+        st.session_state.user = saved_user
+        st.session_state.credits = USERS[saved_user]["credits"]
 
 # =========================
 # AUTH ROUTING
