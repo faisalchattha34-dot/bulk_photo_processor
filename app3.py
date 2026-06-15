@@ -11,7 +11,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS V6.0", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V6.1", layout="wide")
 
 # =========================
 # COOKIE MANAGER
@@ -25,7 +25,7 @@ if not cookies.ready():
     st.stop()
 
 # =========================
-# DATABASE (JSON)
+# DATABASE
 # =========================
 DB_FILE = "users.json"
 
@@ -72,14 +72,12 @@ if "page" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# AUTO LOGIN FIXED
+# AUTO LOGIN
 # =========================
 def restore_login():
     saved = cookies.get("user")
-
     if saved:
         saved = str(saved).strip()
-
     if saved and saved in USERS:
         st.session_state.user = saved
         st.session_state.credits = USERS[saved]["credits"]
@@ -88,7 +86,7 @@ if st.session_state.user is None:
     restore_login()
 
 # =========================
-# HASH PASSWORD
+# HASH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -146,12 +144,12 @@ def login():
                 st.error("Invalid credentials")
 
     with col2:
-        if st.button("Register Page"):
+        if st.button("Register"):
             st.session_state.page = "register"
             st.rerun()
 
 # =========================
-# LOGOUT (FIXED)
+# LOGOUT
 # =========================
 def logout():
     cookies["user"] = ""
@@ -176,7 +174,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS V6.0")
+st.title("📸 Bulk Photo SaaS V6.1")
 st.success(f"Welcome {st.session_state.user} | Credits: {st.session_state.credits}")
 
 if st.button("Logout"):
@@ -194,17 +192,22 @@ def use_credit(n):
     return False
 
 # =========================
-# UPLOAD + CAMERA
+# UPLOAD + CAMERA (CLEAN UI FIX)
 # =========================
-st.subheader("Upload or Capture")
+st.subheader("Upload / Capture")
 
-files = st.file_uploader(
-    "Upload Images",
-    type=["png", "jpg", "jpeg", "webp"],
-    accept_multiple_files=True
-)
+col1, col2 = st.columns(2)
 
-camera = st.camera_input("Take a Photo 📷")
+with col1:
+    files = st.file_uploader(
+        "Upload Images",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True
+    )
+
+with col2:
+    with st.expander("📷 Camera (Click to open)", expanded=False):
+        camera = st.camera_input("Take Photo")
 
 all_files = []
 
@@ -238,7 +241,7 @@ height = st.number_input("Height", value=h)
 
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 remove_bg = st.checkbox("Remove Background", True)
-enhance = st.checkbox("Enhance Image (AI Clear Mode)", True)
+enhance = st.checkbox("Enhance Image", True)
 prefix = st.text_input("File Prefix", "photo")
 
 dpi = st.selectbox("DPI", [72,150,300])
@@ -263,7 +266,6 @@ if files and st.button("PROCESS"):
 
             img = Image.open(file)
 
-            # background remove safe
             if remove_bg:
                 output = remove(img)
                 img = Image.open(io.BytesIO(output)).convert("RGBA")
@@ -272,16 +274,12 @@ if files and st.button("PROCESS"):
 
             img = img.resize((width, height))
 
-            # =========================
-            # STRONG ENHANCEMENT (BLUR FIX)
-            # =========================
+            # STRONG ENHANCEMENT
             if enhance:
                 img = ImageEnhance.Sharpness(img).enhance(2.5)
                 img = ImageEnhance.Contrast(img).enhance(1.3)
                 img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(
-                    ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
-                )
+                img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
 
             if not preview:
                 st.image(img, width=200)
@@ -323,4 +321,3 @@ st.subheader("History")
 
 for h in reversed(st.session_state.history):
     st.write(h)
-    
