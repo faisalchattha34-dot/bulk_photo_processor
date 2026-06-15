@@ -5,15 +5,15 @@ import zipfile
 import io
 from datetime import datetime
 
-st.set_page_config(page_title="Bulk Photo SaaS V5.1", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V5.2", layout="wide")
 
 # =========================
-# FAKE DATABASE (UPGRADED)
+# FAKE DATABASE
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = {
-        "admin": {"password": "admin123", "credits": 999},
-        "user": {"password": "user123", "credits": 20}
+        "admin": {"password": "admin123", "email": "admin@demo.com", "credits": 999},
+        "user": {"password": "user123", "email": "user@demo.com", "credits": 20}
     }
 
 USERS = st.session_state.USERS
@@ -35,34 +35,38 @@ if "page" not in st.session_state:
 
 
 # =========================
-# REGISTER SYSTEM
+# REGISTER (EMAIL ADDED)
 # =========================
 def register():
-    st.title("📝 Create New Account")
+    st.title("📝 Create Account")
 
-    username = st.text_input("Choose Username")
-    password = st.text_input("Choose Password", type="password")
+    username = st.text_input("Username")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if username in USERS:
-            st.error("❌ Username already exists")
-        elif username == "":
-            st.error("❌ Username cannot be empty")
+        if username == "":
+            st.error("Username required")
+        elif email == "":
+            st.error("Email required")
+        elif username in USERS:
+            st.error("Username already exists")
         else:
             USERS[username] = {
                 "password": password,
-                "credits": 10  # 🎁 free signup credits
+                "email": email,
+                "credits": 10
             }
-            st.success("✅ Account created! You can login now.")
+            st.success("Account created successfully 🎉")
             st.session_state.page = "login"
             st.rerun()
 
 
 # =========================
-# LOGIN SYSTEM
+# LOGIN
 # =========================
 def login():
-    st.title("🔐 SaaS Login")
+    st.title("🔐 Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -77,7 +81,7 @@ def login():
                 st.success("Login Successful")
                 st.rerun()
             else:
-                st.error("Invalid Credentials")
+                st.error("Invalid credentials")
 
     with col2:
         if st.button("Create Account"):
@@ -122,22 +126,20 @@ def compress_to_target(img, target_kb, fmt):
 
 
 # =========================
-# ROUTING (LOGIN / REGISTER / DASHBOARD)
+# AUTH ROUTING
 # =========================
 if not st.session_state.user:
-
     if st.session_state.page == "register":
         register()
     else:
         login()
-
     st.stop()
 
 
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS V5.1")
+st.title("📸 Bulk Photo SaaS V5.2")
 st.success(f"Welcome {st.session_state.user} | Credits: {st.session_state.credits}")
 
 if st.button("Logout"):
@@ -166,7 +168,7 @@ files = st.file_uploader(
 
 
 # =========================
-# SETTINGS
+# PRESET SIZE
 # =========================
 preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "Job"])
 
@@ -185,22 +187,51 @@ with col1:
 with col2:
     height = st.number_input("Height", value=height)
 
+
+# =========================
+# STYLE
+# =========================
 bg_color = st.selectbox("Background", ["white", "blue", "red", "green", "black"])
 output_format = st.selectbox("Format", ["JPG", "PNG", "WEBP"])
 
-remove_bg = st.selectbox("Background Removal", ["ON (AI)", "OFF"]) == "ON (AI)"
+remove_bg = st.selectbox("Background Removal", ["ON", "OFF"]) == "ON"
 enhance = st.checkbox("Enhance Image", True)
 
 prefix = st.text_input("File Prefix", "photo")
 
-dpi = st.selectbox("DPI", [72, 150, 300, 600])
-size_choice = st.selectbox("File Size", ["No Limit", "20 KB", "50 KB", "100 KB"])
+
+# =========================
+# DPI (CUSTOM + PRESET FIX)
+# =========================
+st.subheader("DPI Settings")
+
+dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"], horizontal=True)
+
+if dpi_mode == "Preset":
+    dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
+else:
+    dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
+
+
+# =========================
+# SIZE (CUSTOM FIX)
+# =========================
+st.subheader("File Size Settings")
+
+size_mode = st.radio("Size Mode", ["Preset", "Custom"], horizontal=True)
+
+if size_mode == "Preset":
+    size_choice = st.selectbox("Select Size", ["No Limit", "20 KB", "50 KB", "100 KB"])
+    custom_size = None
+else:
+    size_choice = "Custom"
+    custom_size = st.number_input("Enter Custom Size (KB)", min_value=1, value=100)
 
 
 # =========================
 # PROCESS
 # =========================
-if files and st.button("🚀 PROCESS (V5.1 SaaS)"):
+if files and st.button("🚀 PROCESS (V5.2 SaaS)"):
 
     if not use_credit(len(files)):
         st.error("❌ Not enough credits")
@@ -217,7 +248,6 @@ if files and st.button("🚀 PROCESS (V5.1 SaaS)"):
 
             image = Image.open(file)
 
-            # BG REMOVE
             if remove_bg:
                 image = remove(image)
                 image = image.convert("RGBA")
@@ -247,12 +277,15 @@ if files and st.button("🚀 PROCESS (V5.1 SaaS)"):
             image.save(buffer, format=save_format, dpi=(dpi, dpi))
             buffer.seek(0)
 
+            # COMPRESSION
             if size_choice == "20 KB":
                 buffer = compress_to_target(image, 20, output_format)
             elif size_choice == "50 KB":
                 buffer = compress_to_target(image, 50, output_format)
             elif size_choice == "100 KB":
                 buffer = compress_to_target(image, 100, output_format)
+            elif size_choice == "Custom" and custom_size:
+                buffer = compress_to_target(image, custom_size, output_format)
 
             filename = f"{prefix}_{i+1}.{output_format.lower()}"
             zipf.writestr(filename, buffer.getvalue())
@@ -271,7 +304,7 @@ if files and st.button("🚀 PROCESS (V5.1 SaaS)"):
     st.download_button(
         "📥 Download ZIP",
         zip_buffer.getvalue(),
-        file_name="bulk_v5_1.zip",
+        file_name="bulk_v5_2.zip",
         mime="application/zip"
     )
 
