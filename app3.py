@@ -5,7 +5,7 @@ import zipfile
 import io
 from datetime import datetime
 
-st.set_page_config(page_title="Bulk Photo SaaS V5.3", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V5.4", layout="wide")
 
 # =========================
 # DATABASE (SESSION DEMO)
@@ -27,7 +27,6 @@ if "history" not in st.session_state:
 
 if "page" not in st.session_state:
     st.session_state.page = "login"
-
 
 USERS = st.session_state.USERS
 
@@ -96,33 +95,6 @@ def logout():
 
 
 # =========================
-# SMART COMPRESSION
-# =========================
-def smart_compress(img, min_kb, max_kb, fmt):
-    quality = 95
-    save_format = "JPEG" if fmt in ["JPG", "JPEG"] else fmt
-
-    while quality >= 10:
-        buffer = io.BytesIO()
-
-        save_kwargs = {"format": save_format}
-        if save_format in ["JPEG", "WEBP"]:
-            save_kwargs["quality"] = quality
-
-        img.save(buffer, **save_kwargs)
-        size_kb = len(buffer.getvalue()) / 1024
-
-        if min_kb <= size_kb <= max_kb:
-            buffer.seek(0)
-            return buffer
-
-        quality -= 5
-
-    buffer.seek(0)
-    return buffer
-
-
-# =========================
 # AUTH ROUTING
 # =========================
 if not st.session_state.user:
@@ -136,7 +108,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS V5.3")
+st.title("📸 Bulk Photo SaaS V5.4 (FULL RESTORED)")
 st.success(f"Welcome {st.session_state.user} | Credits: {st.session_state.credits}")
 
 if st.button("Logout"):
@@ -165,66 +137,100 @@ files = st.file_uploader(
 
 
 # =========================
-# FORMAT
+# FULL PRESET SYSTEM (RESTORED)
 # =========================
+st.subheader("Size Presets")
+
+preset = st.selectbox(
+    "Preset",
+    ["Custom", "Passport (300x300)", "NADRA (400x400)",
+     "Job (300x400)", "HD (800x1000)"]
+)
+
+preset_map = {
+    "Passport (300x300)": (300, 300),
+    "NADRA (400x400)": (400, 400),
+    "Job (300x400)": (300, 400),
+    "HD (800x1000)": (800, 1000),
+    "Custom": (300, 300)
+}
+
+width, height = preset_map[preset]
+
+col1, col2 = st.columns(2)
+with col1:
+    width = st.number_input("Width", min_value=50, value=width)
+with col2:
+    height = st.number_input("Height", min_value=50, value=height)
+
+
+# =========================
+# STYLE SETTINGS
+# =========================
+bg_color = st.selectbox("Background", ["white", "blue", "red", "green", "black"])
 output_format = st.selectbox("Format", ["JPG", "JPEG", "PNG", "WEBP"])
 
-
-# =========================
-# RESOLUTION (MIN 600x800)
-# =========================
-st.subheader("Resolution")
-
-res_mode = st.radio("Mode", ["Preset", "Custom"], horizontal=True)
-
-if res_mode == "Preset":
-    preset = st.selectbox("Preset", ["600x800", "800x1200", "1024x1366"])
-    preset_map = {
-        "600x800": (600, 800),
-        "800x1200": (800, 1200),
-        "1024x1366": (1024, 1366)
-    }
-    width, height = preset_map[preset]
-else:
-    col1, col2 = st.columns(2)
-    with col1:
-        width = st.number_input("Width", min_value=600, value=600)
-    with col2:
-        height = st.number_input("Height", min_value=800, value=800)
-
-
-# =========================
-# SETTINGS
-# =========================
-bg_color = st.selectbox("BG Color", ["white", "blue", "red", "green", "black"])
-remove_bg = st.checkbox("Remove Background", True)
+remove_bg = st.checkbox("Remove Background (AI)", True)
 enhance = st.checkbox("Enhance Image", True)
+
 prefix = st.text_input("File Prefix", "photo")
 
 
 # =========================
-# DPI
+# DPI (RESTORED + CUSTOM)
 # =========================
+st.subheader("DPI Settings")
+
 dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"], horizontal=True)
 
 if dpi_mode == "Preset":
     dpi = st.selectbox("DPI", [72, 150, 300, 600])
 else:
-    dpi = st.number_input("DPI", min_value=10, max_value=5000, value=300)
+    dpi = st.number_input("Custom DPI", min_value=10, max_value=5000, value=300)
 
 
 # =========================
-# SIZE RANGE (10–25 KB DEFAULT)
+# COMPRESSION SYSTEM (RESTORED + SAFE)
 # =========================
 st.subheader("File Size Control")
 
-size_mode = st.radio("Compression", ["ON (10-25KB)", "OFF"], horizontal=True)
+size_mode = st.radio("Compression", ["10–25KB Auto", "Custom Range", "OFF"], horizontal=True)
 
 min_kb, max_kb = None, None
 
-if size_mode == "ON (10-25KB)":
-    min_kb = 10
-    max_kb = 25
+if size_mode == "10–25KB Auto":
+    min_kb, max_kb = 10, 25
+
+elif size_mode == "Custom Range":
+    col1, col2 = st.columns(2)
+    with col1:
+        min_kb = st.number_input("Min KB", min_value=5, value=10)
+    with col2:
+        max_kb = st.number_input("Max KB", min_value=6, value=25)
+
+
+def smart_compress(img, min_kb, max_kb, fmt):
+    quality = 95
+    save_format = "JPEG" if fmt in ["JPG", "JPEG"] else fmt
+
+    while quality >= 10:
+        buffer = io.BytesIO()
+
+        save_kwargs = {"format": save_format}
+        if save_format in ["JPEG", "WEBP"]:
+            save_kwargs["quality"] = quality
+
+        img.save(buffer, **save_kwargs)
+        size_kb = len(buffer.getvalue()) / 1024
+
+        if min_kb and max_kb and min_kb <= size_kb <= max_kb:
+            buffer.seek(0)
+            return buffer
+
+        quality -= 5
+
+    buffer.seek(0)
+    return buffer
 
 
 # =========================
@@ -295,7 +301,7 @@ if files and st.button("🚀 PROCESS"):
     st.download_button(
         "Download ZIP",
         zip_buffer.getvalue(),
-        file_name="output_v5_3.zip"
+        file_name="output_v5_4.zip"
     )
 
 
