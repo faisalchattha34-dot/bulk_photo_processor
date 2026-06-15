@@ -83,12 +83,16 @@ st.title("📸 STUDIO PHOTO EDITOR PRO")
 
 
 # ================= INPUT =================
+st.subheader("📤 Input Image")
+
 col1, col2 = st.columns(2)
 
 with col1:
     upload = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 
+# ================= CAMERA (FIXED SIZE) =================
 with col2:
+    st.subheader("📸 Camera")
     camera = st.camera_input("Take Photo")
 
 img_file = camera if camera else upload
@@ -99,7 +103,7 @@ if img_file:
 
     img = Image.open(img_file)
 
-    # ================= SIDE BY SIDE PREVIEW =================
+    # ================= PREVIEW =================
     st.subheader("🖼 Preview + Enhancement")
 
     col1, col2 = st.columns(2)
@@ -120,7 +124,6 @@ if img_file:
 
         st.image(preview_img, width=300)
 
-    # ================= USE FINAL IMAGE =================
     img = preview_img
 
     # ================= RESIZE =================
