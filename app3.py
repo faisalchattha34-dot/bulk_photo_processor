@@ -64,30 +64,31 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# LOGIN SYSTEM
+# AUTH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
 def restore_login():
     saved = cookies.get("user")
-    if saved:
-        saved = str(saved).strip()
-    if saved and saved in USERS:
-        st.session_state.user = saved
+    if saved and str(saved).strip() in USERS:
+        st.session_state.user = str(saved).strip()
 
 if st.session_state.user is None:
     restore_login()
 
+# =========================
+# LOGIN
+# =========================
 def login():
     st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col1:
+    with c1:
         if st.button("Login"):
             if u in USERS and USERS[u]["password"] == hash_pass(p):
                 st.session_state.user = u
@@ -97,11 +98,14 @@ def login():
             else:
                 st.error("Invalid credentials")
 
-    with col2:
-        if st.button("Register Here"):
+    with c2:
+        if st.button("Register"):
             st.session_state.page = "register"
             st.rerun()
 
+# =========================
+# REGISTER
+# =========================
 def register():
     st.title("📝 Register")
 
@@ -109,14 +113,12 @@ def register():
     e = st.text_input("Email")
     p = st.text_input("Password", type="password")
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col1:
-        if st.button("Create Account"):
-            if not u or not e or not p:
-                st.error("All fields required")
-            elif u in USERS:
-                st.error("User already exists")
+    with c1:
+        if st.button("Create"):
+            if u in USERS:
+                st.error("User exists")
             else:
                 USERS[u] = {
                     "password": hash_pass(p),
@@ -124,15 +126,18 @@ def register():
                     "credits": 10
                 }
                 save_users()
-                st.success("Account created")
+                st.success("Created")
                 st.session_state.page = "login"
                 st.rerun()
 
-    with col2:
-        if st.button("Back to Login"):
+    with c2:
+        if st.button("Back"):
             st.session_state.page = "login"
             st.rerun()
 
+# =========================
+# LOGOUT
+# =========================
 def logout():
     cookies["user"] = ""
     cookies.save()
@@ -154,25 +159,28 @@ if not st.session_state.user:
 # =========================
 user = st.session_state.user
 
-st.title("📸 BULK PHOTO SaaS FINAL SYSTEM")
+st.title("📸 BULK PHOTO SaaS FINAL FIX")
 st.success(f"Welcome {user}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# UPLOAD + CAMERA
+# UPLOAD
 # =========================
 st.subheader("Upload / Camera")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
+    files = st.file_uploader(
+        "Upload Images",
+        type=["png","jpg","jpeg","webp"],
+        accept_multiple_files=True
+    )
 
 with col2:
-    st.caption("📷 Camera")
-    camera = st.camera_input("Take Photo", label_visibility="collapsed")
+    camera = st.camera_input("Take Photo")
 
 images = []
 if files:
@@ -181,7 +189,7 @@ if camera:
     images.append(camera)
 
 # =========================
-# PRESETS
+# PRESET
 # =========================
 preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
@@ -199,11 +207,15 @@ width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
 # =========================
+# DPI (CUSTOM ADDED FIX)
+# =========================
+dpi = st.number_input("DPI (Custom)", min_value=72, max_value=1200, value=300)
+
+# =========================
 # SETTINGS
 # =========================
-bg_color = st.selectbox("Background Color", ["none","white","blue","red","black"])
+bg_color = st.selectbox("Background", ["none","white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300,600])
 
 remove_bg = st.checkbox("Remove BG", True)
 enhance = st.checkbox("AI Enhance", True)
@@ -211,27 +223,37 @@ enhance = st.checkbox("AI Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# NEW: SIZE LIMIT SYSTEM (ADDED)
+# COMPRESSION
 # =========================
-st.subheader("📦 Size Compression Control (NEW)")
+st.subheader("📦 Size Control")
 
 size_mode = st.selectbox(
-    "Compression Mode",
-    ["OFF", "Low (200-500KB)", "Medium (100-200KB)", "Ultra (10-50KB)", "Custom KB"]
+    "Mode",
+    ["OFF", "Low 500KB", "Medium 200KB", "Ultra 50KB", "Custom"]
 )
 
-custom_kb = None
+custom_kb = st.number_input("Custom KB", 5, 2000, 100)
 
-if size_mode == "Custom KB":
-    custom_kb = st.number_input("Target KB", min_value=5, max_value=2000, value=100)
+def get_target_kb():
+    if size_mode == "Low 500KB":
+        return 500
+    if size_mode == "Medium 200KB":
+        return 200
+    if size_mode == "Ultra 50KB":
+        return 50
+    if size_mode == "Custom":
+        return custom_kb
+    return None
 
 def smart_compress(img, target_kb):
     quality = 95
+    buffer = io.BytesIO()
+
     while quality > 10:
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=quality)
-        size_kb = len(buffer.getvalue()) / 1024
+        img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi))
 
+        size_kb = len(buffer.getvalue()) / 1024
         if target_kb and size_kb <= target_kb:
             buffer.seek(0)
             return buffer
@@ -240,19 +262,6 @@ def smart_compress(img, target_kb):
 
     buffer.seek(0)
     return buffer
-
-def get_target_kb():
-    if size_mode == "OFF":
-        return None
-    if size_mode == "Low (200-500KB)":
-        return 500
-    if size_mode == "Medium (100-200KB)":
-        return 200
-    if size_mode == "Ultra (10-50KB)":
-        return 50
-    if size_mode == "Custom KB":
-        return custom_kb
-    return None
 
 # =========================
 # ENHANCE
@@ -266,13 +275,13 @@ def enhance_img(img):
     return img
 
 # =========================
-# PROCESS
+# PROCESS (FIXED)
 # =========================
 if images and st.button("PROCESS"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
-    preview_area = st.empty()
+    preview = st.empty()
 
     target_kb = get_target_kb()
 
@@ -280,14 +289,17 @@ if images and st.button("PROCESS"):
 
         for i, file in enumerate(images):
 
-            img = Image.open(file)
+            img_bytes = file.read()
+            img = Image.open(io.BytesIO(img_bytes))
 
+            # BG REMOVE FIX
             if remove_bg:
-                img = Image.open(io.BytesIO(remove(img))).convert("RGBA")
+                out = remove(img_bytes)
+                img = Image.open(io.BytesIO(out)).convert("RGBA")
             else:
                 img = img.convert("RGB")
 
-            img = img.resize((width, height))
+            img = img.resize((int(width), int(height)))
 
             if enhance:
                 img = enhance_img(img)
@@ -301,7 +313,8 @@ if images and st.button("PROCESS"):
             if img.mode != "RGB":
                 img = img.convert("RGB")
 
-            preview_area.image(img, caption=f"Processed {i+1}", width=220)
+            # PREVIEW FIX
+            preview.image(img, caption=f"Processed {i+1}", width=220)
 
             buffer = io.BytesIO()
 
@@ -321,16 +334,16 @@ if images and st.button("PROCESS"):
         "time": datetime.now().strftime("%Y-%m-%d %H:%M")
     })
 
-    st.success("Done")
+    st.success("Processing Complete")
 
     st.download_button(
-        "Download ZIP",
+        "⬇ Download ZIP",
         zip_buffer.getvalue(),
         file_name="output.zip"
     )
 
 # =========================
-# HISTORY
+# HISTORY FIX
 # =========================
 st.divider()
 st.subheader("📊 History")
@@ -343,5 +356,5 @@ for h in reversed(st.session_state.history):
     ---
     👤 **User:** {h['user']}  
     📁 **Files:** {h['files']}  
-    🕒 **Time:** {h['time']}  
+    🕒 **Time:** {h['time']}
     """)
