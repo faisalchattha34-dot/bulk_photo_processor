@@ -152,20 +152,23 @@ def login():
 
 # =========================
 # LOGOUT (FIXED)
-# =========================
+# =====================
 def logout():
-    if "user" in cookies:
-        del cookies["user"]
-
+    # FORCE REMOVE cookie properly
+    cookies["user"] = ""
     cookies.save()
 
+    # extra safety (important)
     st.session_state.user = None
     st.session_state.credits = 0
     st.session_state.page = "login"
 
+    # force rerun AFTER cleanup
     st.rerun()
 
-# =========================
+
+=========================
+
 # AUTH ROUTING
 # =========================
 if not st.session_state.user:
