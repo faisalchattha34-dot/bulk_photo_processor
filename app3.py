@@ -31,16 +31,12 @@ def apply_background(img, bg_mode, bg_color):
 def resize_image(img, mode, width, height):
     if mode == "Custom":
         return img.resize((int(width), int(height)))
-
     elif mode == "Passport":
         return img.resize((600, 600))
-
     elif mode == "ID Card":
         return img.resize((300, 300))
-
     elif mode == "A4":
         return img.resize((1080, 1350))
-
     return img
 
 
@@ -81,18 +77,30 @@ def compress_image(img, target, unit, fmt):
 # =========================
 st.title("📸 STUDIO PHOTO EDITOR PRO")
 
-
 # ================= INPUT =================
-st.subheader("📤 Input Image")
+st.subheader("📤 Input Section")
 
 col1, col2 = st.columns(2)
 
 with col1:
     upload = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 
-# ================= CAMERA (FIXED SIZE) =================
 with col2:
-    st.subheader("📸 Camera")
+    st.markdown("### 📸 Camera")
+
+    # 🔥 FIX: compact camera using CSS
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stCameraInput"] {
+            width: 260px !important;
+            margin: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     camera = st.camera_input("Take Photo")
 
 img_file = camera if camera else upload
@@ -175,7 +183,7 @@ if img_file:
     fmt = st.selectbox("Format", ["JPG", "PNG"])
     quality = st.slider("Quality (JPG)", 10, 100, 90)
 
-    # ================= FILE SIZE CONTROL =================
+    # ================= FILE SIZE =================
     st.subheader("📦 File Size Control")
 
     compress = st.checkbox("Enable Compression")
