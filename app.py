@@ -5,7 +5,7 @@ import zipfile
 import io
 from datetime import datetime
 
-st.set_page_config(page_title="Bulk Photo Tool V5.5", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS FREE V5.4", layout="wide")
 
 # =========================
 # DATABASE (SESSION DEMO)
@@ -39,7 +39,7 @@ def register():
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if username == "" or email == "" or password == "":
+        if username == "" or email == "":
             st.error("All fields required")
         elif username in USERS:
             st.error("User already exists")
@@ -102,7 +102,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo Tool V5.5 (FULL)")
+st.title("📸 Bulk Photo Tool FREE VERSION (V5.4)")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
@@ -110,11 +110,11 @@ if st.button("Logout"):
 
 
 # =========================
-# INPUT MODE (UPLOAD + CAMERA)
+# UPLOAD + CAMERA (NEW)
 # =========================
-st.subheader("Input Mode")
+st.subheader("Input Images")
 
-mode = st.radio("Select Input Method", ["Upload Images", "Camera"])
+mode = st.radio("Select Input Mode", ["Upload Images", "Camera Capture"])
 
 files = []
 
@@ -124,14 +124,15 @@ if mode == "Upload Images":
         type=["png", "jpg", "jpeg", "webp"],
         accept_multiple_files=True
     ) or []
+
 else:
-    cam = st.camera_input("Take a Photo")
+    cam = st.camera_input("Take Photo")
     if cam:
         files = [cam]
 
 
 # =========================
-# SIZE PRESETS
+# SIZE PRESETS (UNCHANGED)
 # =========================
 st.subheader("Size Presets")
 
@@ -158,7 +159,7 @@ with col2:
 
 
 # =========================
-# SETTINGS
+# SETTINGS (UNCHANGED)
 # =========================
 bg_color = st.selectbox("Background", ["white", "blue", "red", "green", "black"])
 output_format = st.selectbox("Format", ["JPG", "JPEG", "PNG", "WEBP"])
@@ -170,7 +171,7 @@ prefix = st.text_input("File Prefix", "photo")
 
 
 # =========================
-# DPI
+# DPI (UNCHANGED)
 # =========================
 st.subheader("DPI Settings")
 
@@ -183,12 +184,12 @@ else:
 
 
 # =========================
-# COMPRESSION
+# COMPRESSION (UNCHANGED)
 # =========================
-st.subheader("Compression (Optional)")
+st.subheader("File Size Control")
 
-min_kb = st.number_input("Min KB (0 = OFF)", value=0)
-max_kb = st.number_input("Max KB (0 = OFF)", value=0)
+min_kb = st.number_input("Min KB (0 = off)", value=0)
+max_kb = st.number_input("Max KB (0 = off)", value=0)
 
 
 def smart_compress(img, min_kb, max_kb, fmt):
@@ -218,7 +219,7 @@ def smart_compress(img, min_kb, max_kb, fmt):
 # =========================
 # PROCESS
 # =========================
-if files and st.button("🚀 PROCESS IMAGES"):
+if files and st.button("🚀 PROCESS"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
@@ -269,7 +270,7 @@ if files and st.button("🚀 PROCESS IMAGES"):
             filename = f"{prefix}_{i+1}.{output_format.lower()}"
             zipf.writestr(filename, buffer.getvalue())
 
-            progress.progress((i + 1) / len(files))
+            progress.progress((i+1)/len(files))
 
     st.session_state.history.append({
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -277,12 +278,12 @@ if files and st.button("🚀 PROCESS IMAGES"):
         "files": len(files)
     })
 
-    st.success("Processing Complete")
+    st.success("Done")
 
     st.download_button(
         "Download ZIP",
         zip_buffer.getvalue(),
-        file_name="bulk_output_v5_5.zip"
+        file_name="output_free_v5_4.zip"
     )
 
 
