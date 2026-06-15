@@ -28,16 +28,92 @@ def apply_background(img, bg_mode, bg_color):
 # =========================
 # RESIZE
 # =========================
-def resize_image(img, mode, width, height):
-    if mode == "Custom":
-        return img.resize((int(width), int(height)))
-    elif mode == "Passport":
-        return img.resize((600, 600))
-    elif mode == "ID Card":
-        return img.resize((300, 300))
-    elif mode == "A4":
-        return img.resize((1080, 1350))
-    return img
+# ================= RESIZE =================
+st.subheader("📏 Professional Resize Presets")
+
+resize_mode = st.selectbox(
+    "Choose Purpose",
+    [
+        "Custom",
+        "NADRA CNIC (413 × 531)",
+        "Job Application (300 × 300)",
+        "Admission Form (600 × 600)",
+        "CV Profile Picture (400 × 400)",
+        "Passport Size (600 × 600)",
+        "LinkedIn Profile (400 × 400)",
+        "A4 Document (1080 × 1350)"
+    ]
+)
+
+if resize_mode == "Custom":
+
+    custom_mode = st.radio(
+        "Size Input Method",
+        ["Manual Width & Height", "Resolution Preset"]
+    )
+
+    if custom_mode == "Manual Width & Height":
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            width = st.number_input(
+                "Width (px)",
+                min_value=1,
+                value=300,
+                key="custom_width"
+            )
+
+        with col2:
+            height = st.number_input(
+                "Height (px)",
+                min_value=1,
+                value=300,
+                key="custom_height"
+            )
+
+    else:
+
+        resolution = st.selectbox(
+            "Select Resolution",
+            [
+                "300 × 300",
+                "400 × 400",
+                "413 × 531",
+                "600 × 600",
+                "800 × 800",
+                "1080 × 1080",
+                "1920 × 1080"
+            ]
+        )
+
+        resolution = resolution.replace(" ", "")
+        width, height = map(int, resolution.split("×"))
+
+elif resize_mode == "NADRA CNIC (413 × 531)":
+    width, height = 413, 531
+
+elif resize_mode == "Job Application (300 × 300)":
+    width, height = 300, 300
+
+elif resize_mode == "Admission Form (600 × 600)":
+    width, height = 600, 600
+
+elif resize_mode == "CV Profile Picture (400 × 400)":
+    width, height = 400, 400
+
+elif resize_mode == "Passport Size (600 × 600)":
+    width, height = 600, 600
+
+elif resize_mode == "LinkedIn Profile (400 × 400)":
+    width, height = 400, 400
+
+elif resize_mode == "A4 Document (1080 × 1350)":
+    width, height = 1080, 1350
+
+st.success(f"Selected Resolution: {width} × {height} px")
+
+img = img.resize((int(width), int(height)))
 
 
 # =========================
