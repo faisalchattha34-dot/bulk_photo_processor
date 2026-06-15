@@ -226,10 +226,27 @@ else:
 # ENHANCE
 # =========================
 def enhance_img(img):
-    img = ImageEnhance.Sharpness(img).enhance(3.0)
-    img = ImageEnhance.Contrast(img).enhance(1.5)
-    img = ImageEnhance.Brightness(img).enhance(1.1)
-    img = img.filter(ImageFilter.UnsharpMask(2,200,3))
+    # Step 1: upscale slightly (better clarity on zoom)
+    img = img.resize(
+        (int(img.width * 1.2), int(img.height * 1.2)),
+        Image.LANCZOS
+    )
+
+    # Step 2: sharp detail recovery
+    img = ImageEnhance.Sharpness(img).enhance(3.5)
+
+    # Step 3: micro contrast (fix blur / haze)
+    img = ImageEnhance.Contrast(img).enhance(1.6)
+
+    # Step 4: brightness stabilization
+    img = ImageEnhance.Brightness(img).enhance(1.08)
+
+    # Step 5: edge clarity (important for "remini feel")
+    img = img.filter(ImageFilter.UnsharpMask(radius=2.5, percent=220, threshold=2))
+
+    # Step 6: final smooth sharpening (avoid pixel breakup)
+    img = img.filter(ImageFilter.SMOOTH_MORE)
+
     return img
 
 # =========================
