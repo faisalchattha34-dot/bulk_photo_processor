@@ -1,173 +1,227 @@
 import streamlit as st
 from PIL import Image, ImageEnhance
-import io
-import zipfile
+import io, zipfile
 from datetime import datetime
 
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS V6", layout="wide")
+st.set_page_config(page_title="Photo SaaS Pro", layout="wide")
 
 # =========================
-# SIMPLE USER DATABASE
+# SESSION INIT (LOGIN STABLE)
+# =========================
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+# =========================
+# SIMPLE DATABASE (DEMO)
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = {
-        "admin": "admin"
+        "admin@gmail.com": "admin"
     }
 
-if "LOGGED_IN" not in st.session_state:
-    st.session_state.LOGGED_IN = False
-
-if "USERNAME" not in st.session_state:
-    st.session_state.USERNAME = ""
-
 # =========================
-# AUTH FUNCTIONS
+# AUTH
 # =========================
+def register():
+    st.subheader("Register")
+
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Create Account"):
+        if email in st.session_state.USERS:
+            st.error("User already exists")
+        else:
+            st.session_state.USERS[email] = password
+            st.success("Registered successfully")
+
+
 def login():
     st.subheader("Login")
-    u = st.text_input("Username")
-    p = st.text_input("Password", type="password")
+
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if u in st.session_state.USERS and st.session_state.USERS[u] == p:
-            st.session_state.LOGGED_IN = True
-            st.session_state.USERNAME = u
-            st.success("Login successful")
+        if email in st.session_state.USERS and st.session_state.USERS[email] == password:
+            st.session_state.user = email
+            st.success("Login success")
         else:
             st.error("Invalid credentials")
 
 
-def register():
-    st.subheader("Register")
-    u = st.text_input("New Username")
-    p = st.text_input("New Password", type="password")
-
-    if st.button("Create Account"):
-        if u in st.session_state.USERS:
-            st.error("User already exists")
-        else:
-            st.session_state.USERS[u] = p
-            st.success("Account created")
+def logout():
+    st.session_state.user = None
+    st.success("Logged out")
 
 
 # =========================
-# IMAGE UTILITIES
+# IMAGE FUNCTIONS
 # =========================
-def compress_to_kb(image, target_kb, fmt="JPEG"):
+def enhance(img, sharpness):
+    return ImageEnhance.Sharpness(img).enhance(sharpness)
+
+
+def resize_custom(img, w, h):
+    return img.resize((w, h))
+
+
+def compress(img, target_kb):
     quality = 95
-    min_q = 10
+    while quality > 10:
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        size = len(buf.getvalue()) / 1024
 
-    while quality >= min_q:
-        buffer = io.BytesIO()
-        image.save(buffer, format=fmt, quality=quality, optimize=True)
-        size_kb = len(buffer.getvalue()) / 1024
-
-        if size_kb <= target_kb:
-            buffer.seek(0)
-            return buffer
+        if size <= target_kb:
+            return buf
 
         quality -= 5
 
-    buffer.seek(0)
-    return buffer
-
-
-def resize_image(img, size_type):
-    if size_type == "Passport (35x45mm approx)":
-        return img.resize((413, 531))
-    return img
-
-
-def enhance_image(img, brightness, contrast):
-    img = ImageEnhance.Brightness(img).enhance(brightness)
-    img = ImageEnhance.Contrast(img).enhance(contrast)
-    return img
-
-
-def remove_bg_safe(img):
-    try:
-        from rembg import remove
-        output = remove(img)
-        return Image.open(io.BytesIO(output))
-    except:
-        return img
+    return buf
 
 
 # =========================
 # MAIN APP
 # =========================
-def main_app():
-    st.title("📸 Bulk Photo Processor SaaS V6")
+def app():
+    st.title("📸 Photo SaaS PRO (Full System)")
 
-    st.sidebar.header("⚙ Settings")
+    # =========================
+    # SIDEBAR SETTINGS
+    # =========================
+    st.sidebar.header("Settings")
 
-    target_kb = st.sidebar.number_input("Target Size (KB)", 5, 5000, 100)
-    dpi = st.sidebar.number_input("DPI", 72, 600, 300)
+    upload_mode = st.sidebar.radio("Input", ["Upload Image", "Camera"])
 
-    size_option = st.sidebar.selectbox(
-        "Resize Option",
-        ["Original", "Passport (35x45mm approx)"]
+    preset = st.sidebar.selectbox(
+        "Size Preset",
+        ["Custom", "Passport", "Admission", "Job"]
     )
 
-    brightness = st.sidebar.slider("Brightness", 0.5, 2.0, 1.0)
-    contrast = st.sidebar.slider("Contrast", 0.5, 2.0, 1.0)
+    # preset sizes
+    preset_sizes = {
+        "Passport": (413, 531),
+        "Admission": (600, 800),
+        "Job": (800, 800)
+    }
 
-    remove_bg = st.sidebar.checkbox("Remove Background")
+    if preset == "Custom":
+        width = st.sidebar.number_input("Width", 50, 3000, 500)
+        height = st.sidebar.number_input("Height", 50, 3000, 500)
+    else:
+        width, height = preset_sizes[preset]
 
-    uploaded_files = st.file_uploader(
-        "Upload Images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True
-    )
+    dpi = st.sidebar.selectbox("DPI", [72, 150, 300, 600])
 
-    if uploaded_files:
-        zip_buffer = io.BytesIO()
-        zipf = zipfile.ZipFile(zip_buffer, "w")
+    target_kb = st.sidebar.number_input("Target Size KB", 10, 5000, 200)
 
-        for i, file in enumerate(uploaded_files):
-            img = Image.open(file).convert("RGB")
+    sharpness = st.sidebar.slider("Enhance Sharpness", 0.5, 3.0, 1.0)
 
-            # processing
-            img = resize_image(img, size_option)
-            img = enhance_image(img, brightness, contrast)
+    remove_bg = st.sidebar.checkbox("Remove Background (optional)")
 
-            if remove_bg:
-                img = remove_bg_safe(img)
+    bg_color = st.sidebar.color_picker("Background Color (if replace)", "#ffffff")
 
+    # =========================
+    # INPUT
+    # =========================
+    if upload_mode == "Upload Image":
+        file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
+    else:
+        file = st.camera_input("Take Photo")
+
+    if file:
+        img = Image.open(file).convert("RGB")
+
+        st.subheader("Preview Original")
+        st.image(img, use_container_width=True)
+
+        # =========================
+        # PROCESS BUTTON
+        # =========================
+        if st.button("Process Image"):
+            # resize
+            img = resize_custom(img, width, height)
+
+            # enhance
+            img = enhance(img, sharpness)
+
+            # DPI set
             img.info["dpi"] = (dpi, dpi)
 
-            compressed = compress_to_kb(img, target_kb)
+            # background option (simple replace simulation)
+            if remove_bg:
+                img = Image.new("RGB", img.size, bg_color)
 
-            filename = f"processed_{i+1}.jpg"
-            zipf.writestr(filename, compressed.getvalue())
+            # compress
+            final_img = compress(img, target_kb)
 
-        zipf.close()
-        zip_buffer.seek(0)
+            st.subheader("Preview Final")
+            st.image(img, use_container_width=True)
 
-        st.download_button(
-            "⬇ Download ZIP",
-            zip_buffer,
-            file_name=f"photos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-            mime="application/zip"
-        )
+            # =========================
+            # DOWNLOAD ZIP
+            # =========================
+            zip_buffer = io.BytesIO()
+            zipf = zipfile.ZipFile(zip_buffer, "w")
+
+            zipf.writestr("image.jpg", final_img.getvalue())
+            zipf.close()
+            zip_buffer.seek(0)
+
+            st.download_button(
+                "⬇ Download ZIP",
+                zip_buffer,
+                file_name="processed_image.zip",
+                mime="application/zip"
+            )
+
+            # =========================
+            # HISTORY SAVE
+            # =========================
+            st.session_state.history.append({
+                "user": st.session_state.user,
+                "time": str(datetime.now()),
+                "size": f"{width}x{height}",
+                "kb": target_kb
+            })
 
 
 # =========================
-# APP ROUTING
+# HISTORY PAGE
 # =========================
-st.sidebar.title("Navigation")
+def show_history():
+    st.subheader("📜 User History")
 
-menu = st.sidebar.radio("Menu", ["Login", "Register", "App"])
+    for h in st.session_state.history:
+        if h["user"] == st.session_state.user:
+            st.write(h)
+
+
+# =========================
+# NAVIGATION
+# =========================
+st.sidebar.title("Menu")
+
+menu = st.sidebar.radio("Go To", ["Login", "Register", "App", "History"])
 
 if menu == "Login":
     login()
 elif menu == "Register":
     register()
 elif menu == "App":
-    if st.session_state.LOGGED_IN:
-        main_app()
+    if st.session_state.user:
+        app()
     else:
         st.warning("Please login first")
+elif menu == "History":
+    if st.session_state.user:
+        show_history()
+    else:
+        st.warning("Login required")
