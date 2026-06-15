@@ -12,7 +12,7 @@ import numpy as np
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS FULL PRO", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS PRO ULTIMATE", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -100,6 +100,25 @@ def login():
         else:
             st.error("Invalid credentials")
 
+def register():
+    st.title("📝 Register")
+
+    u = st.text_input("Username")
+    e = st.text_input("Email")
+    p = st.text_input("Password", type="password")
+
+    if st.button("Create"):
+        if u in USERS:
+            st.error("User exists")
+        else:
+            USERS[u] = {
+                "password": hash_pass(p),
+                "email": e,
+                "credits": 10
+            }
+            save_users()
+            st.success("Account created")
+
 def logout():
     cookies["user"] = ""
     cookies.save()
@@ -116,8 +135,10 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 BULK PHOTO SAAS FULL (RESTORED)")
-st.success(f"Welcome {st.session_state.user}")
+user = st.session_state.user
+
+st.title("📸 BULK PHOTO SAAS ULTIMATE (ALL FEATURES)")
+st.success(f"Welcome {user}")
 
 if st.button("Logout"):
     logout()
@@ -146,13 +167,13 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS (FULL RESTORED)
+# SETTINGS
 # =========================
 st.subheader("Settings")
 
 preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
-preset_map = {
+sizes = {
     "Passport": (300,300),
     "NADRA": (400,400),
     "Job": (300,400),
@@ -160,27 +181,67 @@ preset_map = {
     "Custom": (300,300)
 }
 
-w, h = preset_map[preset]
+w, h = sizes[preset]
 
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-# ✔ Background color feature RESTORED
-bg_color = st.selectbox("Background Color (after remove)", ["none","white","blue","red","black"])
-
-# ✔ Format change feature RESTORED
-output_format = st.selectbox("Output Format", ["JPG","PNG","WEBP"])
-
-# ✔ DPI feature RESTORED
+bg_color = st.selectbox("Background Color", ["none","white","blue","red","black"])
+output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 dpi = st.selectbox("DPI", [72,150,300,600])
 
-# ✔ Compression control (basic safe)
-quality = st.slider("Compression Quality (JPG)", 10, 100, 90)
-
-remove_bg = st.checkbox("Remove Background (AI)", True)
-enhance = st.checkbox("Enhance Image", True)
+remove_bg = st.checkbox("Remove Background", True)
+enhance = st.checkbox("AI Enhance (Remini Mode)", True)
 
 prefix = st.text_input("File Prefix", "photo")
+
+# =========================
+# SMART COMPRESSION UI (NEW)
+# =========================
+st.subheader("Compression Control")
+
+mode = st.selectbox("Compression Mode", ["Preset", "Custom KB"])
+
+if mode == "Preset":
+    kb_map = {
+        "Low (20KB)": 20,
+        "Medium (100KB)": 100,
+        "High (300KB)": 300
+    }
+    choice = st.selectbox("Preset Size", list(kb_map.keys()))
+    target_kb = kb_map[choice]
+else:
+    target_kb = st.number_input("Custom KB", 5, 5000, 100)
+
+# =========================
+# REMINI STYLE ENHANCEMENT
+# =========================
+def remini_enhance(img):
+    img = ImageEnhance.Sharpness(img).enhance(3.0)
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Brightness(img).enhance(1.1)
+    img = img.filter(ImageFilter.UnsharpMask(2,200,3))
+    return img
+
+# =========================
+# SMART COMPRESS
+# =========================
+def smart_compress(img, target_kb):
+    quality = 95
+    while quality > 10:
+        buffer = io.BytesIO()
+        temp = img.convert("RGB")
+        temp.save(buffer, format="JPEG", quality=quality)
+        size_kb = len(buffer.getvalue()) / 1024
+
+        if size_kb <= target_kb:
+            buffer.seek(0)
+            return buffer
+
+        quality -= 5
+
+    buffer.seek(0)
+    return buffer
 
 # =========================
 # SAFE BG REMOVE
@@ -196,17 +257,15 @@ def safe_remove(img):
         return out
 
 # =========================
-# BACKGROUND COLOR APPLY
+# BG COLOR APPLY
 # =========================
 def apply_bg(img, color):
     if color == "none":
         return img
 
     base = Image.new("RGB", img.size, color)
-
     if img.mode != "RGBA":
         img = img.convert("RGBA")
-
     base.paste(img, mask=img.split()[-1])
     return base
 
@@ -232,43 +291,30 @@ if images and st.button("PROCESS"):
             else:
                 img = img.convert("RGB")
 
-            # RESIZE
             img = img.resize((width, height))
 
-            # ENHANCE
+            # ENHANCE (REMINI STYLE)
             if enhance:
-                img = ImageEnhance.Sharpness(img).enhance(2.5)
-                img = ImageEnhance.Contrast(img).enhance(1.3)
-                img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(ImageFilter.UnsharpMask(2,150,3))
+                img = remini_enhance(img)
 
-            # BACKGROUND COLOR APPLY
+            # BG COLOR
             img = apply_bg(img, bg_color)
 
             if not preview:
                 st.image(img, width=200)
                 preview = True
 
-            buffer = io.BytesIO()
-
+            # FORMAT HANDLING
             fmt = output_format.upper()
 
-            if fmt == "JPG":
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img.save(buffer, format="JPEG", quality=quality)
-
-            else:
-                img.save(buffer, format=fmt)
-
-            buffer.seek(0)
+            buffer = smart_compress(img, target_kb)
 
             zipf.writestr(f"{prefix}_{i+1}.{fmt.lower()}", buffer.getvalue())
 
             progress.progress((i+1)/len(images))
 
     st.session_state.history.append({
-        "user": st.session_state.user,
+        "user": user,
         "files": len(images),
         "time": datetime.now().strftime("%Y-%m-%d %H:%M")
     })
