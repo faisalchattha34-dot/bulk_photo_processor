@@ -81,6 +81,7 @@ def compress_image(img, target, unit, fmt):
 # =========================
 st.title("📸 STUDIO PHOTO EDITOR PRO")
 
+
 # ================= INPUT =================
 col1, col2 = st.columns(2)
 
@@ -93,16 +94,26 @@ with col2:
 img_file = camera if camera else upload
 
 
+# ================= MAIN =================
 if img_file:
 
     img = Image.open(img_file)
 
-    st.image(img, caption="Original", use_container_width=True)
+    # ================= FIXED PREVIEW =================
+    st.subheader("🖼 Preview")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image(img, caption="Original Image", width=300)
 
     # ================= ENHANCE =================
     st.subheader("✨ Enhancement")
     if st.checkbox("Enable Enhancement"):
         img = enhance_image(img)
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.image(img, caption="Enhanced Image", width=300)
 
     # ================= RESIZE =================
     st.subheader("📏 Resize")
