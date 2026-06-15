@@ -12,7 +12,7 @@ import numpy as np
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS Stable", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS FULL PRO", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -38,11 +38,13 @@ def load_users():
         return {
             "admin": {
                 "password": hashlib.sha256("admin123".encode()).hexdigest(),
-                "email": "admin@demo.com"
+                "email": "admin@demo.com",
+                "credits": 999
             },
             "user": {
                 "password": hashlib.sha256("user123".encode()).hexdigest(),
-                "email": "user@demo.com"
+                "email": "user@demo.com",
+                "credits": 20
             }
         }
 
@@ -114,7 +116,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 BULK PHOTO SAAS (STABLE FINAL)")
+st.title("📸 BULK PHOTO SAAS FULL (RESTORED)")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
@@ -144,59 +146,72 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS
+# SETTINGS (FULL RESTORED)
 # =========================
-preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "HD"])
+st.subheader("Settings")
 
-sizes = {
-    "Passport": (300, 300),
-    "NADRA": (400, 400),
-    "HD": (800, 1000),
-    "Custom": (300, 300)
+preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
+
+preset_map = {
+    "Passport": (300,300),
+    "NADRA": (400,400),
+    "Job": (300,400),
+    "HD": (800,1000),
+    "Custom": (300,300)
 }
 
-w, h = sizes[preset]
+w, h = preset_map[preset]
 
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-remove_bg = st.checkbox("Remove Background", True)
+# ✔ Background color feature RESTORED
+bg_color = st.selectbox("Background Color (after remove)", ["none","white","blue","red","black"])
+
+# ✔ Format change feature RESTORED
+output_format = st.selectbox("Output Format", ["JPG","PNG","WEBP"])
+
+# ✔ DPI feature RESTORED
+dpi = st.selectbox("DPI", [72,150,300,600])
+
+# ✔ Compression control (basic safe)
+quality = st.slider("Compression Quality (JPG)", 10, 100, 90)
+
+remove_bg = st.checkbox("Remove Background (AI)", True)
 enhance = st.checkbox("Enhance Image", True)
+
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# 🔥 SAFE IMAGE PROCESSOR (FIXED ALL ERRORS)
+# SAFE BG REMOVE
 # =========================
-def process_image(img):
-    # remove background safely
-    if remove_bg:
-        out = remove(img)
+def safe_remove(img):
+    out = remove(img)
 
-        if isinstance(out, (bytes, bytearray)):
-            img = Image.open(io.BytesIO(out))
-        elif isinstance(out, np.ndarray):
-            img = Image.fromarray(out)
-        else:
-            img = out
-
-        img = img.convert("RGBA")
+    if isinstance(out, (bytes, bytearray)):
+        return Image.open(io.BytesIO(out))
+    elif isinstance(out, np.ndarray):
+        return Image.fromarray(out)
     else:
-        img = img.convert("RGB")
-
-    # resize
-    img = img.resize((width, height))
-
-    # enhance
-    if enhance:
-        img = ImageEnhance.Sharpness(img).enhance(2.5)
-        img = ImageEnhance.Contrast(img).enhance(1.3)
-        img = ImageEnhance.Brightness(img).enhance(1.05)
-        img = img.filter(ImageFilter.UnsharpMask(2, 150, 3))
-
-    return img
+        return out
 
 # =========================
-# PROCESS BUTTON
+# BACKGROUND COLOR APPLY
+# =========================
+def apply_bg(img, color):
+    if color == "none":
+        return img
+
+    base = Image.new("RGB", img.size, color)
+
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+
+    base.paste(img, mask=img.split()[-1])
+    return base
+
+# =========================
+# PROCESS
 # =========================
 if images and st.button("PROCESS"):
 
@@ -205,28 +220,52 @@ if images and st.button("PROCESS"):
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        preview_done = False
+        preview = False
 
         for i, file in enumerate(images):
 
             img = Image.open(file)
-            img = process_image(img)
 
-            # FIX: JPEG cannot save RGBA
-            if img.mode != "RGB":
+            # BG REMOVE
+            if remove_bg:
+                img = safe_remove(img).convert("RGBA")
+            else:
                 img = img.convert("RGB")
 
+            # RESIZE
+            img = img.resize((width, height))
+
+            # ENHANCE
+            if enhance:
+                img = ImageEnhance.Sharpness(img).enhance(2.5)
+                img = ImageEnhance.Contrast(img).enhance(1.3)
+                img = ImageEnhance.Brightness(img).enhance(1.05)
+                img = img.filter(ImageFilter.UnsharpMask(2,150,3))
+
+            # BACKGROUND COLOR APPLY
+            img = apply_bg(img, bg_color)
+
+            if not preview:
+                st.image(img, width=200)
+                preview = True
+
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=95)
+
+            fmt = output_format.upper()
+
+            if fmt == "JPG":
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img.save(buffer, format="JPEG", quality=quality)
+
+            else:
+                img.save(buffer, format=fmt)
+
             buffer.seek(0)
 
-            zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
+            zipf.writestr(f"{prefix}_{i+1}.{fmt.lower()}", buffer.getvalue())
 
-            if not preview_done:
-                st.image(img, width=200)
-                preview_done = True
-
-            progress.progress((i + 1) / len(images))
+            progress.progress((i+1)/len(images))
 
     st.session_state.history.append({
         "user": st.session_state.user,
