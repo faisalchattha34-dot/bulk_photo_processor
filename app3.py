@@ -83,7 +83,6 @@ if st.session_state.user is None:
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-# 🔥 LOGIN
 def login():
     st.title("🔐 Login")
 
@@ -107,7 +106,6 @@ def login():
             st.session_state.page = "register"
             st.rerun()
 
-# 🔥 REGISTER (FIXED PROPER PAGE)
 def register():
     st.title("📝 Register")
 
@@ -139,7 +137,6 @@ def register():
             st.session_state.page = "login"
             st.rerun()
 
-# 🔥 LOGOUT
 def logout():
     cookies["user"] = ""
     cookies.save()
@@ -147,7 +144,7 @@ def logout():
     st.rerun()
 
 # =========================
-# ROUTING FIX (IMPORTANT)
+# ROUTING
 # =========================
 if not st.session_state.user:
     if st.session_state.page == "register":
@@ -161,22 +158,25 @@ if not st.session_state.user:
 # =========================
 user = st.session_state.user
 
-st.title("📸 BULK PHOTO SAAS FINAL FULL SYSTEM")
+st.title("📸 BULK PHOTO SAAS FINAL SYSTEM")
 st.success(f"Welcome {user}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# UPLOAD + CAMERA
+# UPLOAD + SMALL CAMERA UI (UPDATED)
 # =========================
+st.subheader("Upload / Camera")
+
 col1, col2 = st.columns(2)
 
 with col1:
     files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
 
 with col2:
-    camera = st.camera_input("Take Photo")
+    st.caption("📷 Camera")
+    camera = st.camera_input("Take Photo", label_visibility="collapsed")
 
 images = []
 if files:
@@ -204,7 +204,6 @@ height = st.number_input("Height", value=h)
 
 bg_color = st.selectbox("Background Color", ["none","white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300])
 
 remove_bg = st.checkbox("Remove BG", True)
 enhance = st.checkbox("AI Enhance", True)
@@ -212,7 +211,19 @@ enhance = st.checkbox("AI Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# ENHANCE (REMINI STYLE)
+# DPI (CUSTOM + PRESET)
+# =========================
+st.subheader("DPI Settings")
+
+dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"], horizontal=True)
+
+if dpi_mode == "Preset":
+    dpi = st.selectbox("Select DPI", [72,150,300,600])
+else:
+    dpi = st.number_input("Enter DPI", min_value=10, max_value=5000, value=300)
+
+# =========================
+# ENHANCE
 # =========================
 def enhance_img(img):
     img = ImageEnhance.Sharpness(img).enhance(3.0)
@@ -228,6 +239,8 @@ if images and st.button("PROCESS"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
+
+    preview_area = st.empty()
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
@@ -254,8 +267,11 @@ if images and st.button("PROCESS"):
             if img.mode != "RGB":
                 img = img.convert("RGB")
 
+            # 🔥 LIVE PREVIEW AFTER PROCESS
+            preview_area.image(img, caption=f"Processed {i+1}", width=220)
+
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=90)
+            img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
             buffer.seek(0)
 
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
@@ -277,10 +293,18 @@ if images and st.button("PROCESS"):
     )
 
 # =========================
-# HISTORY
+# HISTORY (BEAUTIFUL UI)
 # =========================
 st.divider()
-st.subheader("History")
+st.subheader("📊 History (User Activity)")
+
+if not st.session_state.history:
+    st.info("No history yet")
 
 for h in reversed(st.session_state.history):
-    st.write(h)
+    st.markdown(f"""
+    ---
+    👤 **User:** {h['user']}  
+    📁 **Files:** {h['files']}  
+    🕒 **Time:** {h['time']}  
+    """)
