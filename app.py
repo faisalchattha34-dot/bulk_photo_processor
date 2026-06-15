@@ -94,11 +94,15 @@ enhance_image = st.checkbox("Enhance & Sharpen Image")
 remove_background = st.checkbox("Remove Background (AI)", value=True)
 
 prefix = st.text_input("Batch Rename Prefix", "photo")
+st.subheader("Image Resolution (DPI)")
 
-dpi_value = st.selectbox(
-    "Image Resolution (DPI)",
-    [72, 150, 300, 600]
-)
+dpi_mode = st.radio("DPI Mode", ["Preset DPI", "Custom DPI"], horizontal=True)
+
+if dpi_mode == "Preset DPI":
+    dpi_value = st.selectbox("Select DPI", [72, 150, 300, 600])
+else:
+    dpi_value = st.number_input("Enter Custom DPI", min_value=10, max_value=1200, value=300)
+
 
 # ---------------------------
 # Preview
