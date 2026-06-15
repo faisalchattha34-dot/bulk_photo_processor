@@ -5,7 +5,7 @@ import zipfile
 import io
 from datetime import datetime
 
-st.set_page_config(page_title="Bulk Photo Tool FREE", layout="wide")
+st.set_page_config(page_title="Bulk Photo Tool V5.5", layout="wide")
 
 # =========================
 # DATABASE (SESSION DEMO)
@@ -32,14 +32,14 @@ USERS = st.session_state.USERS
 # REGISTER
 # =========================
 def register():
-    st.title("📝 Register (FREE)")
+    st.title("📝 Register")
 
     username = st.text_input("Username")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
     if st.button("Register"):
-        if username == "" or email == "":
+        if username == "" or email == "" or password == "":
             st.error("All fields required")
         elif username in USERS:
             st.error("User already exists")
@@ -48,7 +48,7 @@ def register():
                 "password": password,
                 "email": email
             }
-            st.success("Account created successfully")
+            st.success("Account created")
             st.session_state.page = "login"
             st.rerun()
 
@@ -57,7 +57,7 @@ def register():
 # LOGIN
 # =========================
 def login():
-    st.title("🔐 Login (FREE)")
+    st.title("🔐 Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -102,7 +102,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo Tool FREE VERSION")
+st.title("📸 Bulk Photo Tool V5.5 (FULL)")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
@@ -110,13 +110,24 @@ if st.button("Logout"):
 
 
 # =========================
-# UPLOAD
+# INPUT MODE (UPLOAD + CAMERA)
 # =========================
-files = st.file_uploader(
-    "Upload Images",
-    type=["png", "jpg", "jpeg", "webp"],
-    accept_multiple_files=True
-) or []
+st.subheader("Input Mode")
+
+mode = st.radio("Select Input Method", ["Upload Images", "Camera"])
+
+files = []
+
+if mode == "Upload Images":
+    files = st.file_uploader(
+        "Upload Images",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True
+    ) or []
+else:
+    cam = st.camera_input("Take a Photo")
+    if cam:
+        files = [cam]
 
 
 # =========================
@@ -174,10 +185,10 @@ else:
 # =========================
 # COMPRESSION
 # =========================
-st.subheader("Compression")
+st.subheader("Compression (Optional)")
 
-min_kb = st.number_input("Min KB (0 = off)", value=0)
-max_kb = st.number_input("Max KB (0 = off)", value=0)
+min_kb = st.number_input("Min KB (0 = OFF)", value=0)
+max_kb = st.number_input("Max KB (0 = OFF)", value=0)
 
 
 def smart_compress(img, min_kb, max_kb, fmt):
@@ -207,7 +218,7 @@ def smart_compress(img, min_kb, max_kb, fmt):
 # =========================
 # PROCESS
 # =========================
-if files and st.button("🚀 PROCESS"):
+if files and st.button("🚀 PROCESS IMAGES"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
@@ -245,7 +256,11 @@ if files and st.button("🚀 PROCESS"):
 
             buffer = io.BytesIO()
 
-            img.save(buffer, format="JPEG" if output_format in ["JPG","JPEG"] else output_format, dpi=(dpi, dpi))
+            img.save(
+                buffer,
+                format="JPEG" if output_format in ["JPG", "JPEG"] else output_format,
+                dpi=(dpi, dpi)
+            )
             buffer.seek(0)
 
             if min_kb and max_kb:
@@ -254,7 +269,7 @@ if files and st.button("🚀 PROCESS"):
             filename = f"{prefix}_{i+1}.{output_format.lower()}"
             zipf.writestr(filename, buffer.getvalue())
 
-            progress.progress((i+1)/len(files))
+            progress.progress((i + 1) / len(files))
 
     st.session_state.history.append({
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -262,12 +277,12 @@ if files and st.button("🚀 PROCESS"):
         "files": len(files)
     })
 
-    st.success("Done")
+    st.success("Processing Complete")
 
     st.download_button(
         "Download ZIP",
         zip_buffer.getvalue(),
-        file_name="output_free.zip"
+        file_name="bulk_output_v5_5.zip"
     )
 
 
