@@ -225,43 +225,52 @@ prefix = st.text_input("File Prefix", "photo")
 # =========================
 # COMPRESSION
 # =========================
-st.subheader("📦 Size Control")
-
-size_mode = st.selectbox(
-    "Mode",
-    ["OFF", "Low 500KB", "Medium 200KB", "Ultra 50KB", "Custom"]
-)
-
-custom_kb = st.number_input("Custom KB", 5, 2000, 100)
-
-def get_target_kb():
-    if size_mode == "Low 500KB":
-        return 500
-    if size_mode == "Medium 200KB":
-        return 200
-    if size_mode == "Ultra 50KB":
-        return 50
-    if size_mode == "Custom":
-        return custom_kb
-    return None
-
 def smart_compress(img, target_kb):
     quality = 95
-    buffer = io.BytesIO()
 
-    while quality > 10:
+    # 🔥 Step 1: aggressive resize factor
+    scale = 1.0
+
+    while True:
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi))
+
+        # resize dynamically if size too big
+        if scale < 1.0:
+            new_size = (
+                max(50, int(img.width * scale)),
+                max(50, int(img.height * scale))
+            )
+            temp_img = img.resize(new_size, Image.LANCZOS)
+        else:
+            temp_img = img
+
+        temp_img.save(
+            buffer,
+            format="JPEG",
+            quality=quality,
+            optimize=True,
+            dpi=(dpi, dpi)
+        )
 
         size_kb = len(buffer.getvalue()) / 1024
+
+        # ✅ success condition
         if target_kb and size_kb <= target_kb:
             buffer.seek(0)
             return buffer
 
+        # 🔻 step down quality first
         quality -= 5
 
-    buffer.seek(0)
-    return buffer
+        # 🔻 if too low quality, then resize image more
+        if quality < 20:
+            quality = 90
+            scale -= 0.1
+
+        # 🔥 safety break
+        if scale < 0.2:
+            buffer.seek(0)
+            return buffer
 
 # =========================
 # ENHANCE
