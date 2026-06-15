@@ -11,7 +11,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS PRO FIX", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS FREE", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -25,7 +25,7 @@ if not cookies.ready():
     st.stop()
 
 # =========================
-# DATABASE (UNCHANGED)
+# DATABASE
 # =========================
 DB_FILE = "users.json"
 
@@ -37,12 +37,10 @@ def load_users():
         return {
             "admin": {
                 "password": hashlib.sha256("admin123".encode()).hexdigest(),
-                "credits": 999,
                 "plan": "pro"
             },
             "user": {
                 "password": hashlib.sha256("user123".encode()).hexdigest(),
-                "credits": 20,
                 "plan": "free"
             }
         }
@@ -52,7 +50,7 @@ def save_users():
         json.dump(st.session_state.USERS, f)
 
 # =========================
-# SESSION INIT (UNCHANGED)
+# SESSION INIT
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = load_users()
@@ -60,16 +58,13 @@ if "USERS" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-if "page" not in st.session_state:
-    st.session_state.page = "login"
-
 if "history" not in st.session_state:
     st.session_state.history = []
 
 USERS = st.session_state.USERS
 
 # =========================
-# COOKIE RESTORE FIX ONLY
+# AUTO LOGIN
 # =========================
 def restore_login():
     saved = cookies.get("user")
@@ -82,7 +77,7 @@ if st.session_state.user is None:
     restore_login()
 
 # =========================
-# AUTH (UNCHANGED LOGIC)
+# AUTH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -103,7 +98,6 @@ def register():
             USERS[u] = {
                 "password": hash_pass(p),
                 "email": e,
-                "credits": 10,
                 "plan": "free"
             }
             save_users()
@@ -141,10 +135,10 @@ def logout():
     st.rerun()
 
 # =========================
-# ROUTING (UNCHANGED)
+# ROUTING
 # =========================
 if not st.session_state.user:
-    if st.session_state.page == "register":
+    if st.session_state.get("page") == "register":
         register()
     else:
         login()
@@ -154,26 +148,14 @@ if not st.session_state.user:
 # DASHBOARD
 # =========================
 user = st.session_state.user
-st.title("🚀 BULK PHOTO SaaS PRO (STABLE FIX)")
+st.title("🚀 BULK PHOTO SaaS (FREE MODE)")
 st.success(f"Welcome {user}")
-
-st.info(f"Credits: {USERS[user]['credits']}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# CREDIT SYSTEM (UNCHANGED)
-# =========================
-def use_credit(n):
-    if USERS[user]["credits"] >= n:
-        USERS[user]["credits"] -= n
-        save_users()
-        return True
-    return False
-
-# =========================
-# UPLOAD + CAMERA (UNCHANGED)
+# UPLOAD + CAMERA
 # =========================
 st.subheader("Upload / Camera")
 
@@ -197,99 +179,6 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS (ALL RESTORED)
+# SETTINGS
 # =========================
-st.subheader("Settings")
-
-preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
-
-preset_map = {
-    "Passport": (300,300),
-    "NADRA": (400,400),
-    "Job": (300,400),
-    "HD": (800,1000),
-    "Custom": (300,300)
-}
-
-w, h = preset_map[preset]
-
-width = st.number_input("Width", value=w)
-height = st.number_input("Height", value=h)
-
-bg_color = st.selectbox("Background", ["white","blue","red","black"])
-output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300])
-
-remove_bg = st.checkbox("Remove Background (AI)", True)
-enhance = st.checkbox("Enhance Image", True)
-
-prefix = st.text_input("File Prefix", "photo")
-
-# =========================
-# PROCESS (UNCHANGED LOGIC)
-# =========================
-if images and st.button("PROCESS ALL"):
-
-    if not use_credit(len(images)):
-        st.error("Not enough credits")
-        st.stop()
-
-    zip_buffer = io.BytesIO()
-    progress = st.progress(0)
-
-    with zipfile.ZipFile(zip_buffer, "w") as zipf:
-
-        preview = False
-
-        for i, file in enumerate(images):
-
-            img = Image.open(file)
-
-            if remove_bg:
-                out = remove(img)
-                img = Image.open(io.BytesIO(out)).convert("RGBA")
-            else:
-                img = img.convert("RGB")
-
-            img = img.resize((width, height))
-
-            if enhance:
-                img = ImageEnhance.Sharpness(img).enhance(2.5)
-                img = ImageEnhance.Contrast(img).enhance(1.3)
-                img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(ImageFilter.UnsharpMask(2,150,3))
-
-            if not preview:
-                st.image(img, width=200)
-                preview = True
-
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG")
-            buf.seek(0)
-
-            zipf.writestr(f"{prefix}_{i+1}.jpg", buf.getvalue())
-
-            progress.progress((i+1)/len(images))
-
-    st.session_state.history.append({
-        "user": user,
-        "files": len(images),
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
-
-    st.success("Processing Done")
-
-    st.download_button(
-        "Download ZIP",
-        zip_buffer.getvalue(),
-        file_name="output.zip"
-    )
-
-# =========================
-# HISTORY (UNCHANGED)
-# =========================
-st.divider()
-st.subheader("History")
-
-for h in reversed(st.session_state.history):
-    st.write(h)
+st.subheader("
