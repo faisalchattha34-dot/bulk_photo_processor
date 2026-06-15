@@ -11,7 +11,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS V5.6", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V6.0", layout="wide")
 
 # =========================
 # COOKIE MANAGER
@@ -25,7 +25,7 @@ if not cookies.ready():
     st.stop()
 
 # =========================
-# DATABASE (JSON FILE)
+# DATABASE (JSON)
 # =========================
 DB_FILE = "users.json"
 
@@ -52,7 +52,7 @@ def save_users():
         json.dump(st.session_state.USERS, f)
 
 # =========================
-# INIT SESSION
+# SESSION INIT
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = load_users()
@@ -72,7 +72,7 @@ if "page" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# AUTO LOGIN (FIXED)
+# AUTO LOGIN FIXED
 # =========================
 def restore_login():
     saved = cookies.get("user")
@@ -88,7 +88,7 @@ if st.session_state.user is None:
     restore_login()
 
 # =========================
-# PASSWORD HASH
+# HASH PASSWORD
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -152,23 +152,18 @@ def login():
 
 # =========================
 # LOGOUT (FIXED)
-# =====================
+# =========================
 def logout():
-    # FORCE REMOVE cookie properly
     cookies["user"] = ""
     cookies.save()
 
-    # extra safety (important)
     st.session_state.user = None
     st.session_state.credits = 0
     st.session_state.page = "login"
 
-    # force rerun AFTER cleanup
     st.rerun()
 
-
-#=========================
-
+# =========================
 # AUTH ROUTING
 # =========================
 if not st.session_state.user:
@@ -181,14 +176,14 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS V5.6")
+st.title("📸 Bulk Photo SaaS V6.0")
 st.success(f"Welcome {st.session_state.user} | Credits: {st.session_state.credits}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# CREDIT SYSTEM (SYNC FIX)
+# CREDIT SYSTEM
 # =========================
 def use_credit(n):
     if USERS[st.session_state.user]["credits"] >= n:
@@ -199,13 +194,27 @@ def use_credit(n):
     return False
 
 # =========================
-# UPLOAD
+# UPLOAD + CAMERA
 # =========================
+st.subheader("Upload or Capture")
+
 files = st.file_uploader(
     "Upload Images",
     type=["png", "jpg", "jpeg", "webp"],
     accept_multiple_files=True
 )
+
+camera = st.camera_input("Take a Photo 📷")
+
+all_files = []
+
+if files:
+    all_files.extend(files)
+
+if camera:
+    all_files.append(camera)
+
+files = all_files
 
 # =========================
 # SETTINGS
@@ -227,12 +236,9 @@ w, h = preset_map[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-bg_color = st.selectbox("Background", ["white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-
 remove_bg = st.checkbox("Remove Background", True)
-enhance = st.checkbox("Enhance Image", True)
-
+enhance = st.checkbox("Enhance Image (AI Clear Mode)", True)
 prefix = st.text_input("File Prefix", "photo")
 
 dpi = st.selectbox("DPI", [72,150,300])
@@ -251,13 +257,13 @@ if files and st.button("PROCESS"):
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        preview_done = False
+        preview = False
 
         for i, file in enumerate(files):
 
             img = Image.open(file)
 
-            # SAFE rembg handling
+            # background remove safe
             if remove_bg:
                 output = remove(img)
                 img = Image.open(io.BytesIO(output)).convert("RGBA")
@@ -266,16 +272,23 @@ if files and st.button("PROCESS"):
 
             img = img.resize((width, height))
 
+            # =========================
+            # STRONG ENHANCEMENT (BLUR FIX)
+            # =========================
             if enhance:
-                img = ImageEnhance.Contrast(img).enhance(1.2)
-                img = img.filter(ImageFilter.SHARPEN)
+                img = ImageEnhance.Sharpness(img).enhance(2.5)
+                img = ImageEnhance.Contrast(img).enhance(1.3)
+                img = ImageEnhance.Brightness(img).enhance(1.05)
+                img = img.filter(
+                    ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3)
+                )
 
-            if not preview_done:
+            if not preview:
                 st.image(img, width=200)
-                preview_done = True
+                preview = True
 
             buffer = io.BytesIO()
-            save_format = output_format if output_format != "JPG" else "JPEG"
+            save_format = "JPEG" if output_format == "JPG" else output_format
 
             img.save(buffer, format=save_format, dpi=(dpi, dpi))
             buffer.seek(0)
@@ -294,7 +307,7 @@ if files and st.button("PROCESS"):
     if len(st.session_state.history) > 20:
         st.session_state.history = st.session_state.history[-20:]
 
-    st.success("Processing Done")
+    st.success("Processing Complete")
 
     st.download_button(
         "Download ZIP",
@@ -310,3 +323,4 @@ st.subheader("History")
 
 for h in reversed(st.session_state.history):
     st.write(h)
+    
