@@ -64,8 +64,11 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# AUTO LOGIN
+# LOGIN SYSTEM
 # =========================
+def hash_pass(p):
+    return hashlib.sha256(p.encode()).hexdigest()
+
 def restore_login():
     saved = cookies.get("user")
     if saved:
@@ -75,12 +78,6 @@ def restore_login():
 
 if st.session_state.user is None:
     restore_login()
-
-# =========================
-# AUTH
-# =========================
-def hash_pass(p):
-    return hashlib.sha256(p.encode()).hexdigest()
 
 def login():
     st.title("🔐 Login")
@@ -174,7 +171,8 @@ with col1:
     files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
 
 with col2:
-    camera = st.camera_input("Take Photo")
+    st.caption("📷 Camera")
+    camera = st.camera_input("Take Photo", label_visibility="collapsed")
 
 images = []
 if files:
@@ -183,34 +181,29 @@ if camera:
     images.append(camera)
 
 # =========================
-# SIZE CONTROL (NEW FIX)
+# PRESETS
 # =========================
-st.subheader("Image Size Control")
+preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
-size_mode = st.selectbox("Size Mode", ["Preset", "Custom"])
-
-preset_sizes = {
-    "Passport": (300, 300),
-    "NADRA": (400, 400),
-    "Job": (300, 400),
-    "HD": (800, 1000)
+sizes = {
+    "Passport": (300,300),
+    "NADRA": (400,400),
+    "Job": (300,400),
+    "HD": (800,1000),
+    "Custom": (300,300)
 }
 
-if size_mode == "Preset":
-    preset = st.selectbox("Choose Preset", list(preset_sizes.keys()))
-    width, height = preset_sizes[preset]
-else:
-    col1, col2 = st.columns(2)
-    with col1:
-        width = st.number_input("Width", min_value=50, value=300)
-    with col2:
-        height = st.number_input("Height", min_value=50, value=300)
+w, h = sizes[preset]
+
+width = st.number_input("Width", value=w)
+height = st.number_input("Height", value=h)
 
 # =========================
 # SETTINGS
 # =========================
 bg_color = st.selectbox("Background Color", ["none","white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
+dpi = st.selectbox("DPI", [72,150,300,600])
 
 remove_bg = st.checkbox("Remove BG", True)
 enhance = st.checkbox("AI Enhance", True)
@@ -218,37 +211,28 @@ enhance = st.checkbox("AI Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# DPI
+# NEW: SIZE LIMIT SYSTEM (ADDED)
 # =========================
-dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"])
+st.subheader("📦 Size Compression Control (NEW)")
 
-if dpi_mode == "Preset":
-    dpi = st.selectbox("DPI", [72,150,300,600])
-else:
-    dpi = st.number_input("Custom DPI", min_value=10, max_value=5000, value=300)
+size_mode = st.selectbox(
+    "Compression Mode",
+    ["OFF", "Low (200-500KB)", "Medium (100-200KB)", "Ultra (10-50KB)", "Custom KB"]
+)
 
-# =========================
-# SMART ENHANCE
-# =========================
-def enhance_img(img):
-    img = img.resize((int(img.width*1.2), int(img.height*1.2)), Image.LANCZOS)
-    img = ImageEnhance.Sharpness(img).enhance(3.5)
-    img = ImageEnhance.Contrast(img).enhance(1.6)
-    img = ImageEnhance.Brightness(img).enhance(1.08)
-    img = img.filter(ImageFilter.UnsharpMask(2.5, 220, 2))
-    return img
+custom_kb = None
 
-# =========================
-# SMART COMPRESSION (FIXED)
-# =========================
-def smart_compress(img, target_kb=200):
+if size_mode == "Custom KB":
+    custom_kb = st.number_input("Target KB", min_value=5, max_value=2000, value=100)
+
+def smart_compress(img, target_kb):
     quality = 95
     while quality > 10:
         buffer = io.BytesIO()
-        img.convert("RGB").save(buffer, format="JPEG", quality=quality)
+        img.save(buffer, format="JPEG", quality=quality)
         size_kb = len(buffer.getvalue()) / 1024
 
-        if size_kb <= target_kb:
+        if target_kb and size_kb <= target_kb:
             buffer.seek(0)
             return buffer
 
@@ -256,6 +240,30 @@ def smart_compress(img, target_kb=200):
 
     buffer.seek(0)
     return buffer
+
+def get_target_kb():
+    if size_mode == "OFF":
+        return None
+    if size_mode == "Low (200-500KB)":
+        return 500
+    if size_mode == "Medium (100-200KB)":
+        return 200
+    if size_mode == "Ultra (10-50KB)":
+        return 50
+    if size_mode == "Custom KB":
+        return custom_kb
+    return None
+
+# =========================
+# ENHANCE
+# =========================
+def enhance_img(img):
+    img = img.resize((int(img.width*1.2), int(img.height*1.2)), Image.LANCZOS)
+    img = ImageEnhance.Sharpness(img).enhance(3.5)
+    img = ImageEnhance.Contrast(img).enhance(1.6)
+    img = ImageEnhance.Brightness(img).enhance(1.08)
+    img = img.filter(ImageFilter.UnsharpMask(2.5,220,2))
+    return img
 
 # =========================
 # PROCESS
@@ -266,37 +274,46 @@ if images and st.button("PROCESS"):
     progress = st.progress(0)
     preview_area = st.empty()
 
-    for i, file in enumerate(images):
+    target_kb = get_target_kb()
 
-        img = Image.open(file)
+    with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        if remove_bg:
-            img = remove(img).convert("RGBA")
-        else:
-            img = img.convert("RGB")
+        for i, file in enumerate(images):
 
-        img = img.resize((width, height))
+            img = Image.open(file)
 
-        if enhance:
-            img = enhance_img(img)
+            if remove_bg:
+                img = Image.open(io.BytesIO(remove(img))).convert("RGBA")
+            else:
+                img = img.convert("RGB")
 
-        if bg_color != "none":
-            base = Image.new("RGB", img.size, bg_color)
-            if img.mode == "RGBA":
-                base.paste(img, mask=img.split()[-1])
-            img = base
+            img = img.resize((width, height))
 
-        if img.mode != "RGB":
-            img = img.convert("RGB")
+            if enhance:
+                img = enhance_img(img)
 
-        preview_area.image(img, caption=f"Processed {i+1}", width=220)
+            if bg_color != "none":
+                base = Image.new("RGB", img.size, bg_color)
+                if img.mode == "RGBA":
+                    base.paste(img, mask=img.split()[-1])
+                img = base
 
-        buffer = smart_compress(img, 200)
+            if img.mode != "RGB":
+                img = img.convert("RGB")
 
-        with zipfile.ZipFile(zip_buffer, "a") as zipf:
+            preview_area.image(img, caption=f"Processed {i+1}", width=220)
+
+            buffer = io.BytesIO()
+
+            if target_kb:
+                buffer = smart_compress(img, target_kb)
+            else:
+                img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
+                buffer.seek(0)
+
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
 
-        progress.progress((i+1)/len(images))
+            progress.progress((i+1)/len(images))
 
     st.session_state.history.append({
         "user": user,
@@ -316,7 +333,15 @@ if images and st.button("PROCESS"):
 # HISTORY
 # =========================
 st.divider()
-st.subheader("History")
+st.subheader("📊 History")
+
+if not st.session_state.history:
+    st.info("No history yet")
 
 for h in reversed(st.session_state.history):
-    st.write(h)
+    st.markdown(f"""
+    ---
+    👤 **User:** {h['user']}  
+    📁 **Files:** {h['files']}  
+    🕒 **Time:** {h['time']}  
+    """)
