@@ -3,3 +3,6 @@ pillow
 rembg
 onnxruntime
 numpy
+pillow
+rembg
+streamlit-cookies-manager
