@@ -75,6 +75,17 @@ enhance_image = st.checkbox("Enhance & Sharpen Image")
 remove_background = st.checkbox("Replace Existing Background (AI)", value=True)
 
 prefix = st.text_input("Batch Rename Prefix", "photo")
+enhance_image = st.checkbox("Enhance & Sharpen Image")
+remove_background = st.checkbox("Replace Existing Background (AI)", value=True)
+
+prefix = st.text_input("Batch Rename Prefix", "photo")
+
+dpi_value = st.selectbox(
+    "Image Resolution (DPI)",
+    [72, 150, 300, 600]
+)
+
+if uploaded_files:
 
 if uploaded_files:
     st.subheader("Original Images")
@@ -144,4 +155,4 @@ if uploaded_files:
             zip_buffer.getvalue(),
             file_name="processed_images.zip",
             mime="application/zip"
-        )
+        ) 
