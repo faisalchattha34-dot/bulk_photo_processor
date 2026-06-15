@@ -1,300 +1,294 @@
 import streamlit as st
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
+from rembg import remove
+import zipfile
 import io
-
-st.set_page_config(page_title="Studio Photo Editor", layout="wide")
-
-
-# =========================
-# ENHANCEMENT
-# =========================
-def enhance_image(img):
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    img = ImageEnhance.Contrast(img).enhance(1.2)
-    img = ImageEnhance.Brightness(img).enhance(1.1)
-    return img
-
+import json
+import hashlib
+from datetime import datetime
+from streamlit_cookies_manager import EncryptedCookieManager
+import numpy as np
+import os
 
 # =========================
-# BACKGROUND
+# CONFIG
 # =========================
-def apply_background(img, bg_mode, bg_color):
-    if bg_mode == "ON":
-        background = Image.new("RGBA", img.size, bg_color)
-        img = Image.alpha_composite(background, img.convert("RGBA"))
-    return img
-
+st.set_page_config(page_title="Bulk Photo SaaS PRO ULTIMATE", layout="wide")
 
 # =========================
-# RESIZE
+# COOKIE SYSTEM
 # =========================
-# ================= RESIZE =================
-st.subheader("📏 Professional Resize Presets")
-
-resize_mode = st.selectbox(
-    "Choose Purpose",
-    [
-        "Custom",
-        "NADRA CNIC (413 × 531)",
-        "Job Application (300 × 300)",
-        "Admission Form (600 × 600)",
-        "CV Profile Picture (400 × 400)",
-        "Passport Size (600 × 600)",
-        "LinkedIn Profile (400 × 400)",
-        "A4 Document (1080 × 1350)"
-    ]
+cookies = EncryptedCookieManager(
+    prefix="photo_saas",
+    password="super_secure_key"
 )
 
-if resize_mode == "Custom":
+if not cookies.ready():
+    st.stop()
 
-    custom_mode = st.radio(
-        "Size Input Method",
-        ["Manual Width & Height", "Resolution Preset"]
-    )
+# =========================
+# DATABASE FILE
+# =========================
+DB_FILE = "users.json"
+HISTORY_FILE = "history.json"
 
-    if custom_mode == "Manual Width & Height":
+def load_users():
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {
+            "admin": {
+                "password": hashlib.sha256("admin123".encode()).hexdigest(),
+                "email": "admin@demo.com",
+                "credits": 999
+            }
+        }
 
-        col1, col2 = st.columns(2)
+def save_users():
+    with open(DB_FILE, "w") as f:
+        json.dump(st.session_state.USERS, f)
 
-        with col1:
-            width = st.number_input(
-                "Width (px)",
-                min_value=1,
-                value=300,
-                key="custom_width"
-            )
+def load_history():
+    try:
+        with open(HISTORY_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
 
-        with col2:
-            height = st.number_input(
-                "Height (px)",
-                min_value=1,
-                value=300,
-                key="custom_height"
-            )
+def save_history():
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(st.session_state.history, f)
 
+# =========================
+# SESSION INIT
+# =========================
+if "USERS" not in st.session_state:
+    st.session_state.USERS = load_users()
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "history" not in st.session_state:
+    st.session_state.history = load_history()
+
+USERS = st.session_state.USERS
+
+# =========================
+# LOGIN RESTORE
+# =========================
+def restore_login():
+    saved = cookies.get("user")
+    if saved and saved in USERS:
+        st.session_state.user = saved
+
+if st.session_state.user is None:
+    restore_login()
+
+# =========================
+# AUTH FUNCTIONS
+# =========================
+def hash_pass(p):
+    return hashlib.sha256(p.encode()).hexdigest()
+
+def login():
+    st.title("🔐 Login")
+
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if u in USERS and USERS[u]["password"] == hash_pass(p):
+            st.session_state.user = u
+            cookies["user"] = u
+            cookies.save()
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
+
+def register():
+    st.title("📝 Register")
+
+    u = st.text_input("Username")
+    e = st.text_input("Email")
+    p = st.text_input("Password", type="password")
+
+    if st.button("Create Account"):
+        if u in USERS:
+            st.error("User already exists")
+        else:
+            USERS[u] = {
+                "password": hash_pass(p),
+                "email": e,
+                "credits": 10
+            }
+            save_users()
+            st.success("Account created!")
+
+def logout():
+    cookies["user"] = ""
+    cookies.save()
+    st.session_state.user = None
+    st.rerun()
+
+# =========================
+# ROUTING (FIXED)
+# =========================
+if not st.session_state.user:
+
+    page = st.radio("Account", ["Login", "Register"], horizontal=True)
+
+    if page == "Login":
+        login()
     else:
+        register()
 
-        resolution = st.selectbox(
-            "Select Resolution",
-            [
-                "300 × 300",
-                "400 × 400",
-                "413 × 531",
-                "600 × 600",
-                "800 × 800",
-                "1080 × 1080",
-                "1920 × 1080"
-            ]
-        )
-
-        resolution = resolution.replace(" ", "")
-        width, height = map(int, resolution.split("×"))
-
-elif resize_mode == "NADRA CNIC (413 × 531)":
-    width, height = 413, 531
-
-elif resize_mode == "Job Application (300 × 300)":
-    width, height = 300, 300
-
-elif resize_mode == "Admission Form (600 × 600)":
-    width, height = 600, 600
-
-elif resize_mode == "CV Profile Picture (400 × 400)":
-    width, height = 400, 400
-
-elif resize_mode == "Passport Size (600 × 600)":
-    width, height = 600, 600
-
-elif resize_mode == "LinkedIn Profile (400 × 400)":
-    width, height = 400, 400
-
-elif resize_mode == "A4 Document (1080 × 1350)":
-    width, height = 1080, 1350
-
-st.success(f"Selected Resolution: {width} × {height} px")
-
-img = img.resize((int(width), int(height)))
-
+    st.stop()
 
 # =========================
-# COMPRESSOR
+# DASHBOARD
 # =========================
-def compress_image(img, target, unit, fmt):
-    buffer = io.BytesIO()
+st.title("📸 BULK PHOTO SAAS ULTIMATE")
+st.success(f"Welcome {st.session_state.user}")
 
-    if unit == "KB":
-        target_bytes = target * 1024
-    elif unit == "MB":
-        target_bytes = target * 1024 * 1024
-    else:
-        target_bytes = target * 1024 * 1024 * 1024
-
-    quality = 95
-    save_format = "JPEG" if fmt == "JPG" else fmt
-
-    while quality > 10:
-        buffer.seek(0)
-        buffer.truncate()
-
-        img.save(buffer, format=save_format, quality=quality, optimize=True)
-        size = buffer.tell()
-
-        if size <= target_bytes:
-            break
-
-        quality -= 5
-
-    buffer.seek(0)
-    return buffer
-
+if st.button("Logout"):
+    logout()
 
 # =========================
-# UI
+# UPLOAD + CAMERA
 # =========================
-st.title("📸 STUDIO PHOTO EDITOR PRO")
-
-# ================= INPUT =================
-st.subheader("📤 Input Section")
+st.subheader("Upload / Camera")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    upload = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+    files = st.file_uploader(
+        "Upload Images",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=True
+    )
 
 with col2:
-    st.markdown("### 📸 Camera")
-
-    # 🔥 FIX: compact camera using CSS
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stCameraInput"] {
-            width: 260px !important;
-            margin: auto;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     camera = st.camera_input("Take Photo")
 
-img_file = camera if camera else upload
+images = []
+if files:
+    images.extend(files)
+if camera:
+    images.append(camera)
 
+# =========================
+# RESIZE PRESETS
+# =========================
+st.subheader("Resize")
 
-# ================= MAIN =================
-if img_file:
+preset = st.selectbox(
+    "Choose Type",
+    ["Custom", "CNIC", "Passport", "Job", "CV", "A4"]
+)
 
-    img = Image.open(img_file)
+size_map = {
+    "CNIC": (413, 531),
+    "Passport": (600, 600),
+    "Job": (300, 300),
+    "CV": (400, 400),
+    "A4": (1080, 1350),
+    "Custom": (300, 300)
+}
 
-    # ================= PREVIEW =================
-    st.subheader("🖼 Preview + Enhancement")
+w, h = size_map[preset]
 
-    col1, col2 = st.columns(2)
+width = st.number_input("Width", value=w)
+height = st.number_input("Height", value=h)
 
-    with col1:
-        st.markdown("### 📷 Original")
-        st.image(img, width=300)
+# =========================
+# SETTINGS
+# =========================
+bg = st.selectbox("Background", ["none", "white", "blue", "black"])
+fmt = st.selectbox("Format", ["JPG", "PNG", "WEBP"])
+enhance = st.checkbox("Enhance Image", True)
 
-    with col2:
-        st.markdown("### ✨ Enhanced")
+# =========================
+# ENHANCE
+# =========================
+def enhance_img(img):
+    img = ImageEnhance.Sharpness(img).enhance(2)
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    return img
 
-        enhance = st.checkbox("Enable Enhancement", value=True)
+# =========================
+# BG REMOVE SAFE
+# =========================
+def safe_remove(img):
+    out = remove(img)
+    if isinstance(out, (bytes, bytearray)):
+        return Image.open(io.BytesIO(out))
+    return out
 
-        if enhance:
-            preview_img = enhance_image(img)
-        else:
-            preview_img = img
+# =========================
+# BG APPLY
+# =========================
+def apply_bg(img, color):
+    if color == "none":
+        return img
+    base = Image.new("RGB", img.size, color)
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    base.paste(img, mask=img.split()[-1])
+    return base
 
-        st.image(preview_img, width=300)
+# =========================
+# PROCESS
+# =========================
+if images and st.button("PROCESS"):
 
-    img = preview_img
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-    # ================= RESIZE =================
-    st.subheader("📏 Resize")
+        for i, file in enumerate(images):
 
-    resize_mode = st.selectbox(
-        "Resize Mode",
-        ["Custom", "Passport", "ID Card", "A4"]
+            img = Image.open(file)
+
+            img = safe_remove(img).convert("RGBA")
+
+            img = img.resize((int(width), int(height)))
+
+            if enhance:
+                img = enhance_img(img)
+
+            img = apply_bg(img, bg)
+
+            buffer = io.BytesIO()
+
+            save_format = fmt.upper()
+            save_img = img.convert("RGB") if fmt != "PNG" else img
+
+            save_img.save(buffer, format=save_format)
+            zipf.writestr(f"image_{i+1}.{fmt.lower()}", buffer.getvalue())
+
+            # history save
+            st.session_state.history.append({
+                "user": st.session_state.user,
+                "time": str(datetime.now()),
+                "size": f"{width}x{height}",
+                "format": fmt
+            })
+
+    save_history()
+
+    st.success("Done!")
+
+    st.download_button(
+        "Download ZIP",
+        zip_buffer.getvalue(),
+        file_name="photos.zip"
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        width = st.number_input("Width", value=300)
-    with col2:
-        height = st.number_input("Height", value=300)
+# =========================
+# HISTORY
+# =========================
+st.divider()
+st.subheader("History")
 
-    img = resize_image(img, resize_mode, width, height)
-
-    # ================= BACKGROUND =================
-    st.subheader("🎨 Background")
-
-    bg_mode = st.selectbox("Background", ["OFF", "ON"])
-
-    bg_color = "#ffffff"
-    if bg_mode == "ON":
-        bg_color = st.selectbox(
-            "Color",
-            ["#ffffff", "#000000", "#ff0000", "#00ff00", "#0000ff", "#f5f5f5"]
-        )
-
-    img = apply_background(img, bg_mode, bg_color)
-
-    # ================= DPI =================
-    st.subheader("🖨 DPI")
-
-    dpi_mode = st.selectbox(
-        "DPI Mode",
-        ["72 (Web)", "150 (Print)", "300 (High Quality)", "Custom"]
-    )
-
-    if dpi_mode == "Custom":
-        dpi = st.number_input("Enter DPI", value=300)
-    else:
-        dpi = int(dpi_mode.split(" ")[0])
-
-    # ================= OUTPUT =================
-    st.subheader("⚙ Output Settings")
-
-    fmt = st.selectbox("Format", ["JPG", "PNG"])
-    quality = st.slider("Quality (JPG)", 10, 100, 90)
-
-    # ================= FILE SIZE =================
-    st.subheader("📦 File Size Control")
-
-    compress = st.checkbox("Enable Compression")
-
-    target_size = None
-    unit = None
-
-    if compress:
-        col1, col2 = st.columns(2)
-
-        with col1:
-            target_size = st.number_input("Target Size", value=100)
-
-        with col2:
-            unit = st.selectbox("Unit", ["KB", "MB", "GB"])
-
-    # ================= PROCESS =================
-    if st.button("🚀 Generate Image"):
-
-        buffer = io.BytesIO()
-
-        save_format = "JPEG" if fmt == "JPG" else fmt
-        img_to_save = img.convert("RGB") if save_format == "JPEG" else img
-
-        if compress:
-            buffer = compress_image(img_to_save, target_size, unit, save_format)
-        else:
-            img_to_save.save(buffer, format=save_format, quality=quality if save_format == "JPEG" else None)
-            buffer.seek(0)
-
-        st.success("Image Ready 🎉")
-
-        st.download_button(
-            "⬇ Download Image",
-            data=buffer,
-            file_name=f"studio_output.{fmt.lower()}",
-            mime=f"image/{fmt.lower()}"
-        )
+for h in reversed(st.session_state.history[-10:]):
+    st.write(h)
