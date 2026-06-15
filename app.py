@@ -5,18 +5,18 @@ import zipfile
 import io
 from datetime import datetime
 
-st.set_page_config(page_title="Bulk Photo SaaS V3", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V4", layout="wide")
 
 # =========================
-# SESSION STATE (SAAS STYLE)
+# SESSION STATE (SAAS LOGS)
 # =========================
 if "history" not in st.session_state:
     st.session_state.history = []
 
 # =========================
-# SAFE COMPRESS FUNCTION
+# SAFE COMPRESSION ENGINE
 # =========================
-def compress_to_target(pil_img, target_kb, fmt):
+def compress_to_target(img, target_kb, fmt):
     quality = 95
     save_format = "JPEG" if fmt == "JPG" else fmt
 
@@ -27,7 +27,7 @@ def compress_to_target(pil_img, target_kb, fmt):
         if save_format in ["JPEG", "WEBP"]:
             save_kwargs["quality"] = quality
 
-        pil_img.save(buffer, **save_kwargs)
+        img.save(buffer, **save_kwargs)
 
         size_kb = len(buffer.getvalue()) / 1024
 
@@ -44,18 +44,18 @@ def compress_to_target(pil_img, target_kb, fmt):
 # =========================
 # UI HEADER
 # =========================
-st.title("📸 Bulk Photo Processor SaaS V3")
-st.caption("Fast | Smart | Custom DPI | Custom Compression | SaaS Ready")
+st.title("📸 Bulk Photo Processor SaaS V4")
+st.caption("Startup Ready | Admin Controls | AI Background | Compression Engine")
 
 # =========================
 # INPUT MODE
 # =========================
 mode = st.radio("Input Mode", ["Upload Images", "Camera"], horizontal=True)
 
-uploaded_files = []
+files = []
 
 if mode == "Upload Images":
-    uploaded_files = st.file_uploader(
+    files = st.file_uploader(
         "Upload Images",
         type=["png", "jpg", "jpeg", "webp"],
         accept_multiple_files=True
@@ -63,14 +63,14 @@ if mode == "Upload Images":
 else:
     cam = st.camera_input("Take a Photo")
     if cam:
-        uploaded_files = [cam]
+        files = [cam]
 
 
 # =========================
 # PRESET SYSTEM
 # =========================
 preset = st.selectbox(
-    "Preset Size",
+    "Image Preset",
     ["Custom", "Passport (300x300)", "NADRA (400x400)",
      "University (200x200)", "Job (300x400)"]
 )
@@ -85,31 +85,37 @@ preset_map = {
 
 width, height = preset_map[preset]
 
-col1, col2 = st.columns(2)
-
-with col1:
+c1, c2 = st.columns(2)
+with c1:
     width = st.number_input("Width", min_value=50, value=width)
-
-with col2:
+with c2:
     height = st.number_input("Height", min_value=50, value=height)
 
 
 # =========================
-# STYLE OPTIONS
+# STYLE SETTINGS
 # =========================
 bg_color = st.selectbox("Background Color", ["white", "blue", "red", "green", "black"])
 output_format = st.selectbox("Output Format", ["JPG", "PNG", "WEBP"])
 
 enhance = st.checkbox("Enhance Image", value=True)
-remove_bg = st.checkbox("Remove Background (AI)", value=True)
 
-prefix = st.text_input("File Name Prefix", "photo")
+# ✅ NEW ADMIN FEATURE (REQUESTED)
+remove_bg_option = st.selectbox(
+    "Background Removal (Admin Control)",
+    ["Auto (AI Remove)", "No Background Removal"],
+    index=0
+)
+
+remove_bg = True if remove_bg_option == "Auto (AI Remove)" else False
+
+prefix = st.text_input("File Prefix", "photo")
 
 
 # =========================
-# DPI SYSTEM (SAAS STYLE)
+# DPI SYSTEM
 # =========================
-st.subheader("Resolution (DPI)")
+st.subheader("Resolution Control (DPI)")
 
 dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"], horizontal=True)
 
@@ -120,7 +126,7 @@ else:
 
 
 # =========================
-# SIZE SYSTEM (FIXED)
+# SIZE CONTROL SYSTEM
 # =========================
 st.subheader("File Size Control")
 
@@ -137,34 +143,34 @@ else:
 # =========================
 # PREVIEW
 # =========================
-if uploaded_files:
-    st.subheader("Preview")
+if files:
+    st.subheader("Original Preview")
     cols = st.columns(4)
 
-    for i, f in enumerate(uploaded_files):
+    for i, f in enumerate(files):
         with cols[i % 4]:
             st.image(f, use_container_width=True)
 
 
 # =========================
-# PROCESS BUTTON
+# PROCESS ENGINE
 # =========================
-if uploaded_files and st.button("🚀 Process Images"):
+if files and st.button("🚀 Process (V4 SaaS)"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
 
-        preview_shown = False
+        preview_done = False
 
-        for i, file in enumerate(uploaded_files):
+        for i, file in enumerate(files):
 
             image = Image.open(file)
 
-            # -------------------------
-            # BACKGROUND REMOVE
-            # -------------------------
+            # -------------------
+            # BACKGROUND CONTROL
+            # -------------------
             if remove_bg:
                 image = remove(image)
                 image = image.convert("RGBA")
@@ -174,14 +180,14 @@ if uploaded_files and st.button("🚀 Process Images"):
             else:
                 image = image.convert("RGB")
 
-            # -------------------------
+            # -------------------
             # RESIZE
-            # -------------------------
+            # -------------------
             image = image.resize((width, height))
 
-            # -------------------------
+            # -------------------
             # ENHANCE
-            # -------------------------
+            # -------------------
             if enhance:
                 image = image.filter(ImageFilter.SHARPEN)
                 image = ImageEnhance.Sharpness(image).enhance(2.0)
@@ -191,17 +197,17 @@ if uploaded_files and st.button("🚀 Process Images"):
             if output_format == "JPG":
                 image = image.convert("RGB")
 
-            # -------------------------
-            # PREVIEW ONLY FIRST IMAGE
-            # -------------------------
-            if not preview_shown:
+            # -------------------
+            # PREVIEW FIRST IMAGE
+            # -------------------
+            if not preview_done:
                 st.subheader("Processed Preview")
                 st.image(image, width=250)
-                preview_shown = True
+                preview_done = True
 
-            # -------------------------
+            # -------------------
             # SAVE IMAGE
-            # -------------------------
+            # -------------------
             save_format = "JPEG" if output_format == "JPG" else output_format
             buffer = io.BytesIO()
 
@@ -212,9 +218,9 @@ if uploaded_files and st.button("🚀 Process Images"):
             image.save(buffer, dpi=(dpi_value, dpi_value), **save_kwargs)
             buffer.seek(0)
 
-            # -------------------------
-            # COMPRESSION FIX
-            # -------------------------
+            # -------------------
+            # COMPRESSION
+            # -------------------
             if size_choice == "20 KB":
                 buffer = compress_to_target(image, 20, output_format)
             elif size_choice == "50 KB":
@@ -227,24 +233,25 @@ if uploaded_files and st.button("🚀 Process Images"):
             filename = f"{prefix}_{i+1}.{output_format.lower()}"
             zipf.writestr(filename, buffer.getvalue())
 
-            progress.progress((i + 1) / len(uploaded_files))
+            progress.progress((i + 1) / len(files))
 
     # =========================
-    # HISTORY (SAAS FEATURE)
+    # SAAS HISTORY LOG
     # =========================
     st.session_state.history.append({
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "files": len(uploaded_files),
+        "files": len(files),
         "format": output_format,
-        "size_mode": size_choice
+        "bg_remove": remove_bg,
+        "size": size_choice
     })
 
-    st.success("✅ Processing Complete")
+    st.success("✅ Processing Completed Successfully")
 
     st.download_button(
         "📥 Download ZIP",
         zip_buffer.getvalue(),
-        file_name="bulk_processed_v3.zip",
+        file_name="bulk_photos_v4.zip",
         mime="application/zip"
     )
 
@@ -253,10 +260,12 @@ if uploaded_files and st.button("🚀 Process Images"):
 # HISTORY PANEL (SAAS FEATURE)
 # =========================
 st.divider()
-st.subheader("📊 Processing History")
+st.subheader("📊 SaaS Processing History")
 
 if st.session_state.history:
     for h in reversed(st.session_state.history):
-        st.write(f"🕒 {h['time']} | 📁 {h['files']} files | 🎯 {h['format']} | 📦 {h['size_mode']}")
+        st.write(
+            f"🕒 {h['time']} | 📁 {h['files']} files | 🎨 {h['format']} | 🧠 BG Remove: {h['bg_remove']} | 📦 {h['size']}"
+        )
 else:
     st.info("No history yet")
