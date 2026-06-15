@@ -11,7 +11,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS PRO+ Commercial", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS PRO", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -60,13 +60,16 @@ if "USERS" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
+if "page" not in st.session_state:
+    st.session_state.page = "login"
+
 if "history" not in st.session_state:
     st.session_state.history = []
 
 USERS = st.session_state.USERS
 
 # =========================
-# AUTO LOGIN (FIXED)
+# AUTO LOGIN FIX
 # =========================
 def restore_login():
     saved = cookies.get("user")
@@ -79,26 +82,67 @@ if st.session_state.user is None:
     restore_login()
 
 # =========================
-# AUTH
+# HASH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
+# =========================
+# REGISTER (RESTORED)
+# =========================
+def register():
+    st.title("📝 Register")
+
+    u = st.text_input("Username")
+    e = st.text_input("Email")
+    p = st.text_input("Password", type="password")
+
+    if st.button("Create Account"):
+        if not u or not e or not p:
+            st.error("All fields required")
+        elif u in USERS:
+            st.error("User already exists")
+        else:
+            USERS[u] = {
+                "password": hash_pass(p),
+                "email": e,
+                "credits": 10,
+                "plan": "free"
+            }
+            save_users()
+            st.success("Account created")
+            st.session_state.page = "login"
+            st.rerun()
+
+# =========================
+# LOGIN
+# =========================
 def login():
     st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if u in USERS and USERS[u]["password"] == hash_pass(p):
-            st.session_state.user = u
-            cookies["user"] = u
-            cookies.save()
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
+    col1, col2 = st.columns(2)
 
+    with col1:
+        if st.button("Login"):
+            if u in USERS and USERS[u]["password"] == hash_pass(p):
+                st.session_state.user = u
+                cookies["user"] = u
+                cookies.save()
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+
+    with col2:
+        if st.button("Register"):
+            st.session_state.page = "register"
+            st.rerun()
+
+# =========================
+# LOGOUT
+# =========================
 def logout():
     cookies["user"] = ""
     cookies.save()
@@ -109,24 +153,26 @@ def logout():
 # AUTH ROUTE
 # =========================
 if not st.session_state.user:
-    login()
+    if st.session_state.page == "register":
+        register()
+    else:
+        login()
     st.stop()
 
 # =========================
 # DASHBOARD
 # =========================
 user = st.session_state.user
-st.title("🚀 MASTER BULK PHOTO SAAS (COMMERCIAL READY)")
+st.title("🚀 BULK PHOTO SaaS PRO (FIXED)")
 st.success(f"Welcome {user}")
 
-plan = USERS[user].get("plan", "free")
-st.info(f"Plan: {plan} | Credits: {USERS[user]['credits']}")
+st.info(f"Credits: {USERS[user]['credits']}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# CREDIT SYSTEM (SAFE)
+# CREDIT SYSTEM
 # =========================
 def use_credit(n):
     if USERS[user]["credits"] >= n:
@@ -136,7 +182,7 @@ def use_credit(n):
     return False
 
 # =========================
-# UPLOAD + CAMERA (RESTORED FULL)
+# UPLOAD + CAMERA (RESTORED)
 # =========================
 st.subheader("Upload / Camera")
 
@@ -160,10 +206,8 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS (ALL RESTORED)
+# SETTINGS
 # =========================
-st.subheader("Settings")
-
 preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
 preset_map = {
@@ -179,24 +223,16 @@ w, h = preset_map[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-bg_color = st.selectbox("Background", ["white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300])
-
-remove_bg = st.checkbox("Remove Background (AI)", True)
-enhance = st.checkbox("Enhance Image (Clear Mode)", True)
+remove_bg = st.checkbox("Remove Background", True)
+enhance = st.checkbox("Enhance Image", True)
 
 prefix = st.text_input("File Prefix", "photo")
 
-# =========================
-# COMMERCIAL LIMIT (ADD ON ONLY)
-# =========================
-if len(images) > 50:
-    st.error("Max 50 images per batch allowed")
-    st.stop()
+dpi = st.selectbox("DPI", [72,150,300])
 
 # =========================
-# PROCESS ENGINE (FULL POWER RESTORED)
+# PROCESS
 # =========================
 if images and st.button("PROCESS ALL"):
 
@@ -215,7 +251,6 @@ if images and st.button("PROCESS ALL"):
 
             img = Image.open(file)
 
-            # background remove
             if remove_bg:
                 out = remove(img)
                 img = Image.open(io.BytesIO(out)).convert("RGBA")
@@ -224,24 +259,21 @@ if images and st.button("PROCESS ALL"):
 
             img = img.resize((width, height))
 
-            # ENHANCEMENT (FULL RESTORED)
             if enhance:
                 img = ImageEnhance.Sharpness(img).enhance(2.5)
                 img = ImageEnhance.Contrast(img).enhance(1.3)
                 img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+                img = img.filter(ImageFilter.UnsharpMask(2,150,3))
 
             if not preview:
                 st.image(img, width=200)
                 preview = True
 
-            buffer = io.BytesIO()
-            save_format = "JPEG" if output_format == "JPG" else output_format
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG")
+            buf.seek(0)
 
-            img.save(buffer, format=save_format, dpi=(dpi, dpi))
-            buffer.seek(0)
-
-            zipf.writestr(f"{prefix}_{i+1}.{output_format.lower()}", buffer.getvalue())
+            zipf.writestr(f"{prefix}_{i+1}.jpg", buf.getvalue())
 
             progress.progress((i+1)/len(images))
 
@@ -251,10 +283,7 @@ if images and st.button("PROCESS ALL"):
         "time": datetime.now().strftime("%Y-%m-%d %H:%M")
     })
 
-    if len(st.session_state.history) > 20:
-        st.session_state.history = st.session_state.history[-20:]
-
-    st.success("Processing Complete")
+    st.success("Processing Done")
 
     st.download_button(
         "Download ZIP",
@@ -263,7 +292,7 @@ if images and st.button("PROCESS ALL"):
     )
 
 # =========================
-# HISTORY (RESTORED)
+# HISTORY
 # =========================
 st.divider()
 st.subheader("History")
