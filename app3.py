@@ -12,7 +12,7 @@ import numpy as np
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS FIXED", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS Stable", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -114,7 +114,7 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS FIXED VERSION")
+st.title("📸 BULK PHOTO SAAS (STABLE FINAL)")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
@@ -162,35 +162,41 @@ height = st.number_input("Height", value=h)
 
 remove_bg = st.checkbox("Remove Background", True)
 enhance = st.checkbox("Enhance Image", True)
-
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# 🔥 SAFE REMBG FIX (IMPORTANT)
+# 🔥 SAFE IMAGE PROCESSOR (FIXED ALL ERRORS)
 # =========================
-def safe_remove_bg(img):
-    out = remove(img)
+def process_image(img):
+    # remove background safely
+    if remove_bg:
+        out = remove(img)
 
-    # CASE 1: bytes output
-    if isinstance(out, (bytes, bytearray)):
-        try:
-            return Image.open(io.BytesIO(out)).convert("RGBA")
-        except:
-            return img.convert("RGBA")
+        if isinstance(out, (bytes, bytearray)):
+            img = Image.open(io.BytesIO(out))
+        elif isinstance(out, np.ndarray):
+            img = Image.fromarray(out)
+        else:
+            img = out
 
-    # CASE 2: numpy array
-    elif isinstance(out, np.ndarray):
-        return Image.fromarray(out).convert("RGBA")
-
-    # CASE 3: PIL or other
+        img = img.convert("RGBA")
     else:
-        try:
-            return out.convert("RGBA")
-        except:
-            return img.convert("RGBA")
+        img = img.convert("RGB")
+
+    # resize
+    img = img.resize((width, height))
+
+    # enhance
+    if enhance:
+        img = ImageEnhance.Sharpness(img).enhance(2.5)
+        img = ImageEnhance.Contrast(img).enhance(1.3)
+        img = ImageEnhance.Brightness(img).enhance(1.05)
+        img = img.filter(ImageFilter.UnsharpMask(2, 150, 3))
+
+    return img
 
 # =========================
-# PROCESS
+# PROCESS BUTTON
 # =========================
 if images and st.button("PROCESS"):
 
@@ -199,34 +205,26 @@ if images and st.button("PROCESS"):
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        preview = False
+        preview_done = False
 
         for i, file in enumerate(images):
 
             img = Image.open(file)
+            img = process_image(img)
 
-            if remove_bg:
-                img = safe_remove_bg(img)
-            else:
+            # FIX: JPEG cannot save RGBA
+            if img.mode != "RGB":
                 img = img.convert("RGB")
 
-            img = img.resize((width, height))
-
-            if enhance:
-                img = ImageEnhance.Sharpness(img).enhance(2.5)
-                img = ImageEnhance.Contrast(img).enhance(1.3)
-                img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(ImageFilter.UnsharpMask(2, 150, 3))
-
-            if not preview:
-                st.image(img, width=200)
-                preview = True
-
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG")
+            img.save(buffer, format="JPEG", quality=95)
             buffer.seek(0)
 
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
+
+            if not preview_done:
+                st.image(img, width=200)
+                preview_done = True
 
             progress.progress((i + 1) / len(images))
 
