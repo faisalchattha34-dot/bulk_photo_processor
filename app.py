@@ -85,10 +85,14 @@ bg_color = st.selectbox(
 
 output_format = st.selectbox("Output Format", ["JPG", "PNG", "WEBP"])
 
-target_size = st.selectbox(
-    "Target File Size",
-    ["No Limit", "20 KB", "50 KB", "100 KB"]
-)
+if target_size == "20 KB":
+    img_bytes = compress_to_target(image, 20, output_format)
+elif target_size == "50 KB":
+    img_bytes = compress_to_target(image, 50, output_format)
+elif target_size == "100 KB":
+    img_bytes = compress_to_target(image, 100, output_format)
+elif target_size == "Custom" and custom_kb:
+    img_bytes = compress_to_target(image, custom_kb, output_format)
 
 enhance_image = st.checkbox("Enhance & Sharpen Image")
 remove_background = st.checkbox("Remove Background (AI)", value=True)
