@@ -11,9 +11,11 @@ st.set_page_config(page_title="Bulk Photo Processor V2", layout="wide")
 # ---------------------------
 def compress_to_target(img, target_kb, fmt):
     quality = 95
+
     while quality >= 10:
         temp = io.BytesIO()
         save_format = "JPEG" if fmt == "JPG" else fmt
+
         save_kwargs = {"format": save_format}
 
         if save_format in ["JPEG", "WEBP"]:
@@ -85,19 +87,29 @@ bg_color = st.selectbox(
 
 output_format = st.selectbox("Output Format", ["JPG", "PNG", "WEBP"])
 
-if target_size == "20 KB":
-    img_bytes = compress_to_target(image, 20, output_format)
-elif target_size == "50 KB":
-    img_bytes = compress_to_target(image, 50, output_format)
-elif target_size == "100 KB":
-    img_bytes = compress_to_target(image, 100, output_format)
-elif target_size == "Custom" and custom_kb:
-    img_bytes = compress_to_target(image, custom_kb, output_format)
+# ✅ SIZE MODE FIX
+st.subheader("Target File Size")
 
+size_mode = st.radio("Size Mode", ["Preset", "Custom"], horizontal=True)
+
+if size_mode == "Preset":
+    target_size = st.selectbox("Select Size", ["No Limit", "20 KB", "50 KB", "100 KB"])
+    custom_kb = None
+else:
+    target_size = "Custom"
+    custom_kb = st.number_input("Enter Size (KB)", min_value=1, value=100)
+
+# ---------------------------
+# Options
+# ---------------------------
 enhance_image = st.checkbox("Enhance & Sharpen Image")
 remove_background = st.checkbox("Remove Background (AI)", value=True)
 
 prefix = st.text_input("Batch Rename Prefix", "photo")
+
+# ---------------------------
+# DPI FIX
+# ---------------------------
 st.subheader("Image Resolution (DPI)")
 
 dpi_mode = st.radio("DPI Mode", ["Preset DPI", "Custom DPI"], horizontal=True)
@@ -106,7 +118,6 @@ if dpi_mode == "Preset DPI":
     dpi_value = st.selectbox("Select DPI", [72, 150, 300, 600])
 else:
     dpi_value = st.number_input("Enter Custom DPI", min_value=10, max_value=1200, value=300)
-
 
 # ---------------------------
 # Preview
@@ -120,7 +131,7 @@ if uploaded_files:
             st.image(f, use_container_width=True)
 
     # ---------------------------
-    # Process
+    # PROCESS
     # ---------------------------
     if st.button("🚀 Process Images"):
 
@@ -128,7 +139,6 @@ if uploaded_files:
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
             progress = st.progress(0)
-
             preview_done = False
 
             for idx, file in enumerate(uploaded_files):
@@ -152,7 +162,7 @@ if uploaded_files:
                     image = ImageEnhance.Sharpness(image).enhance(2.0)
                     image = ImageEnhance.Contrast(image).enhance(1.2)
 
-                # Convert for JPG
+                # JPG fix
                 if output_format == "JPG":
                     image = image.convert("RGB")
 
@@ -162,31 +172,27 @@ if uploaded_files:
                     st.image(image, width=250)
                     preview_done = True
 
-                # Save format
                 save_format = "JPEG" if output_format == "JPG" else output_format
-
                 img_bytes = io.BytesIO()
 
                 save_kwargs = {"format": save_format}
                 if save_format in ["JPEG", "WEBP"]:
                     save_kwargs["quality"] = 95
 
-                # DPI apply
-                image.save(
-                    img_bytes,
-                    dpi=(dpi_value, dpi_value),
-                    **save_kwargs
-                )
-
+                image.save(img_bytes, dpi=(dpi_value, dpi_value), **save_kwargs)
                 img_bytes.seek(0)
 
-                # Compression
+                # ---------------------------
+                # Compression FIX
+                # ---------------------------
                 if target_size == "20 KB":
                     img_bytes = compress_to_target(image, 20, output_format)
                 elif target_size == "50 KB":
                     img_bytes = compress_to_target(image, 50, output_format)
                 elif target_size == "100 KB":
                     img_bytes = compress_to_target(image, 100, output_format)
+                elif target_size == "Custom" and custom_kb:
+                    img_bytes = compress_to_target(image, custom_kb, output_format)
 
                 filename = f"{prefix}_{idx+1}.{output_format.lower()}"
                 zipf.writestr(filename, img_bytes.getvalue())
