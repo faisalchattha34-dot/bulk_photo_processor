@@ -9,9 +9,9 @@ import hashlib
 from streamlit_cookies_manager import EncryptedCookieManager
 
 # =========================
-# CONFIG
+# PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS V5.5", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS V5.6", layout="wide")
 
 # =========================
 # COOKIE MANAGER
@@ -25,7 +25,7 @@ if not cookies.ready():
     st.stop()
 
 # =========================
-# SIMPLE JSON DATABASE (PERSISTENT)
+# DATABASE (JSON FILE)
 # =========================
 DB_FILE = "users.json"
 
@@ -52,7 +52,7 @@ def save_users():
         json.dump(st.session_state.USERS, f)
 
 # =========================
-# INIT SESSION STATE
+# INIT SESSION
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = load_users()
@@ -72,22 +72,23 @@ if "page" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# AUTO LOGIN FIX
+# AUTO LOGIN (FIXED)
 # =========================
-def load_cookie_user():
+def restore_login():
     saved = cookies.get("user")
+
+    if saved:
+        saved = str(saved).strip()
+
     if saved and saved in USERS:
         st.session_state.user = saved
         st.session_state.credits = USERS[saved]["credits"]
-        return True
-    return False
 
 if st.session_state.user is None:
-    if cookies.ready():
-        load_cookie_user()
+    restore_login()
 
 # =========================
-# HASH PASSWORD
+# PASSWORD HASH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -136,7 +137,7 @@ def login():
                 st.session_state.user = username
                 st.session_state.credits = USERS[username]["credits"]
 
-                cookies.set("user", username)
+                cookies["user"] = username
                 cookies.save()
 
                 st.success("Login Successful")
@@ -150,15 +151,18 @@ def login():
             st.rerun()
 
 # =========================
-# LOGOUT
+# LOGOUT (FIXED)
 # =========================
 def logout():
-    cookies.set("user", "")
+    if "user" in cookies:
+        del cookies["user"]
+
     cookies.save()
 
     st.session_state.user = None
     st.session_state.credits = 0
     st.session_state.page = "login"
+
     st.rerun()
 
 # =========================
@@ -174,14 +178,14 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS V5.5")
+st.title("📸 Bulk Photo SaaS V5.6")
 st.success(f"Welcome {st.session_state.user} | Credits: {st.session_state.credits}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# CREDIT SYSTEM FIX
+# CREDIT SYSTEM (SYNC FIX)
 # =========================
 def use_credit(n):
     if USERS[st.session_state.user]["credits"] >= n:
@@ -194,7 +198,11 @@ def use_credit(n):
 # =========================
 # UPLOAD
 # =========================
-files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
+files = st.file_uploader(
+    "Upload Images",
+    type=["png", "jpg", "jpeg", "webp"],
+    accept_multiple_files=True
+)
 
 # =========================
 # SETTINGS
@@ -220,11 +228,10 @@ bg_color = st.selectbox("Background", ["white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 
 remove_bg = st.checkbox("Remove Background", True)
-enhance = st.checkbox("Enhance", True)
+enhance = st.checkbox("Enhance Image", True)
 
-prefix = st.text_input("Filename Prefix", "photo")
+prefix = st.text_input("File Prefix", "photo")
 
-# DPI
 dpi = st.selectbox("DPI", [72,150,300])
 
 # =========================
@@ -241,13 +248,13 @@ if files and st.button("PROCESS"):
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        preview = False
+        preview_done = False
 
         for i, file in enumerate(files):
 
             img = Image.open(file)
 
-            # FIXED rembg
+            # SAFE rembg handling
             if remove_bg:
                 output = remove(img)
                 img = Image.open(io.BytesIO(output)).convert("RGBA")
@@ -260,9 +267,9 @@ if files and st.button("PROCESS"):
                 img = ImageEnhance.Contrast(img).enhance(1.2)
                 img = img.filter(ImageFilter.SHARPEN)
 
-            if not preview:
+            if not preview_done:
                 st.image(img, width=200)
-                preview = True
+                preview_done = True
 
             buffer = io.BytesIO()
             save_format = output_format if output_format != "JPG" else "JPEG"
@@ -281,7 +288,10 @@ if files and st.button("PROCESS"):
         "files": len(files)
     })
 
-    st.success("Done")
+    if len(st.session_state.history) > 20:
+        st.session_state.history = st.session_state.history[-20:]
+
+    st.success("Processing Done")
 
     st.download_button(
         "Download ZIP",
@@ -290,10 +300,10 @@ if files and st.button("PROCESS"):
     )
 
 # =========================
-# HISTORY LIMIT FIX
+# HISTORY
 # =========================
 st.divider()
 st.subheader("History")
 
-for h in reversed(st.session_state.history[-20:]):
+for h in reversed(st.session_state.history):
     st.write(h)
