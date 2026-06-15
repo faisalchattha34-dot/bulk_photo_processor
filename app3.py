@@ -7,11 +7,12 @@ import json
 import hashlib
 from datetime import datetime
 from streamlit_cookies_manager import EncryptedCookieManager
+import numpy as np
 
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS FIXED", layout="wide")
 
 # =========================
 # COOKIE SYSTEM
@@ -82,50 +83,20 @@ if st.session_state.user is None:
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
-def register():
-    st.title("📝 Register")
-
-    u = st.text_input("Username")
-    e = st.text_input("Email")
-    p = st.text_input("Password", type="password")
-
-    if st.button("Create Account"):
-        if not u or not e or not p:
-            st.error("All fields required")
-        elif u in USERS:
-            st.error("User already exists")
-        else:
-            USERS[u] = {
-                "password": hash_pass(p),
-                "email": e
-            }
-            save_users()
-            st.success("Account created")
-            st.session_state.page = "login"
-            st.rerun()
-
 def login():
     st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Login"):
-            if u in USERS and USERS[u]["password"] == hash_pass(p):
-                st.session_state.user = u
-                cookies["user"] = u
-                cookies.save()
-                st.rerun()
-            else:
-                st.error("Invalid credentials")
-
-    with col2:
-        if st.button("Register"):
-            st.session_state.page = "register"
+    if st.button("Login"):
+        if u in USERS and USERS[u]["password"] == hash_pass(p):
+            st.session_state.user = u
+            cookies["user"] = u
+            cookies.save()
             st.rerun()
+        else:
+            st.error("Invalid credentials")
 
 def logout():
     cookies["user"] = ""
@@ -137,16 +108,13 @@ def logout():
 # ROUTING
 # =========================
 if not st.session_state.user:
-    if st.session_state.get("page") == "register":
-        register()
-    else:
-        login()
+    login()
     st.stop()
 
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 Bulk Photo SaaS")
+st.title("📸 Bulk Photo SaaS FIXED VERSION")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
@@ -167,8 +135,7 @@ with col1:
     )
 
 with col2:
-    with st.expander("📷 Camera", expanded=False):
-        camera = st.camera_input("Take Photo")
+    camera = st.camera_input("Take Photo")
 
 images = []
 if files:
@@ -179,8 +146,6 @@ if camera:
 # =========================
 # SETTINGS
 # =========================
-st.subheader("Settings")
-
 preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "HD"])
 
 sizes = {
@@ -195,10 +160,34 @@ w, h = sizes[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-output_format = st.selectbox("Format", ["JPG", "PNG", "WEBP"])
 remove_bg = st.checkbox("Remove Background", True)
 enhance = st.checkbox("Enhance Image", True)
+
 prefix = st.text_input("File Prefix", "photo")
+
+# =========================
+# 🔥 SAFE REMBG FIX (IMPORTANT)
+# =========================
+def safe_remove_bg(img):
+    out = remove(img)
+
+    # CASE 1: bytes output
+    if isinstance(out, (bytes, bytearray)):
+        try:
+            return Image.open(io.BytesIO(out)).convert("RGBA")
+        except:
+            return img.convert("RGBA")
+
+    # CASE 2: numpy array
+    elif isinstance(out, np.ndarray):
+        return Image.fromarray(out).convert("RGBA")
+
+    # CASE 3: PIL or other
+    else:
+        try:
+            return out.convert("RGBA")
+        except:
+            return img.convert("RGBA")
 
 # =========================
 # PROCESS
@@ -217,8 +206,7 @@ if images and st.button("PROCESS"):
             img = Image.open(file)
 
             if remove_bg:
-                out = remove(img)
-                img = Image.open(io.BytesIO(out)).convert("RGBA")
+                img = safe_remove_bg(img)
             else:
                 img = img.convert("RGB")
 
