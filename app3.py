@@ -45,7 +45,7 @@ def resize_image(img, mode, width, height):
 
 
 # =========================
-# FILE SIZE COMPRESSOR
+# COMPRESSOR
 # =========================
 def compress_image(img, target, unit, fmt):
     buffer = io.BytesIO()
@@ -99,21 +99,29 @@ if img_file:
 
     img = Image.open(img_file)
 
-    # ================= FIXED PREVIEW =================
-    st.subheader("🖼 Preview")
+    # ================= SIDE BY SIDE PREVIEW =================
+    st.subheader("🖼 Preview + Enhancement")
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 📷 Original")
+        st.image(img, width=300)
+
     with col2:
-        st.image(img, caption="Original Image", width=300)
+        st.markdown("### ✨ Enhanced")
 
-    # ================= ENHANCE =================
-    st.subheader("✨ Enhancement")
-    if st.checkbox("Enable Enhancement"):
-        img = enhance_image(img)
+        enhance = st.checkbox("Enable Enhancement", value=True)
 
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.image(img, caption="Enhanced Image", width=300)
+        if enhance:
+            preview_img = enhance_image(img)
+        else:
+            preview_img = img
+
+        st.image(preview_img, width=300)
+
+    # ================= USE FINAL IMAGE =================
+    img = preview_img
 
     # ================= RESIZE =================
     st.subheader("📏 Resize")
