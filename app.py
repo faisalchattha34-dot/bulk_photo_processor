@@ -11,10 +11,10 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS PRO V5", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS PRO FIX V6", layout="wide")
 
 # =========================
-# COOKIE SYSTEM
+# COOKIE
 # =========================
 cookies = EncryptedCookieManager(
     prefix="master_saas",
@@ -55,9 +55,6 @@ if "user" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
-if "history" not in st.session_state:
-    st.session_state.history = []
-
 USERS = st.session_state.USERS
 
 # =========================
@@ -91,10 +88,6 @@ def login():
             st.rerun()
         else:
             st.error("Invalid credentials")
-
-    if st.button("Create Account"):
-        st.session_state.page = "register"
-        st.rerun()
 
 def register():
     st.title("📝 Register")
@@ -132,19 +125,14 @@ if not st.session_state.user:
 # =========================
 user = st.session_state.user
 
-st.title("🚀 BULK PHOTO SaaS PRO V5")
+st.title("🚀 BULK PHOTO SaaS PRO V6")
 st.success(f"Welcome {user}")
 st.info(f"Credits: {USERS[user]['credits']}")
 
 # =========================
 # UPLOAD
 # =========================
-files = st.file_uploader(
-    "Upload Images",
-    type=["png","jpg","jpeg","webp"],
-    accept_multiple_files=True
-)
-
+files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
 camera = st.camera_input("Camera")
 
 images = []
@@ -154,7 +142,7 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS PANEL (FULL)
+# SETTINGS
 # =========================
 st.subheader("Settings")
 
@@ -174,17 +162,15 @@ width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
 bg_color = st.selectbox("Background", ["white","blue","red","black"])
-dpi = st.selectbox("DPI", [72,150,300])
-output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 
+# ✅ DPI FIX (custom + apply)
+dpi = st.number_input("DPI (custom)", min_value=72, max_value=600, value=300)
+
+output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 remove_bg = st.checkbox("Remove Background", True)
 enhance = st.checkbox("Enhance Image", True)
 
-# =========================
-# SIZE CONTROL (KB)
-# =========================
-target_kb = st.number_input("Target Size (KB)", min_value=10, max_value=5000, value=200)
-
+target_kb = st.number_input("Target Size KB", 10, 5000, 200)
 prefix = st.text_input("File Name", "photo")
 
 # =========================
@@ -198,20 +184,16 @@ bg_map = {
 }
 
 # =========================
-# COMPRESS FUNCTION (KB CONTROL)
+# COMPRESS
 # =========================
 def compress(img, target_kb):
     quality = 95
     while quality > 10:
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=quality)
-        size_kb = len(buf.getvalue()) / 1024
-
-        if size_kb <= target_kb:
+        img.save(buf, format="JPEG", quality=quality, dpi=(dpi, dpi))
+        if len(buf.getvalue()) / 1024 <= target_kb:
             return buf.getvalue()
-
         quality -= 5
-
     return buf.getvalue()
 
 # =========================
@@ -230,15 +212,19 @@ if images and st.button("PROCESS ALL"):
 
             img = Image.open(file)
 
-            # BACKGROUND REMOVE FIX
+            # =========================
+            # FIXED BACKGROUND SYSTEM
+            # =========================
             if remove_bg:
                 try:
-                    output = remove(img)
-                    img = Image.open(io.BytesIO(output)).convert("RGBA")
+                    cut = remove(img)
+                    img = Image.open(io.BytesIO(cut)).convert("RGBA")
                 except:
                     img = img.convert("RGBA")
 
-                bg = Image.new("RGBA", img.size, bg_map.get(bg_color))
+                bg = Image.new("RGBA", img.size, bg_map[bg_color])
+
+                # FIX: proper alpha composite safety
                 img = Image.alpha_composite(bg, img).convert("RGB")
 
             else:
@@ -252,15 +238,15 @@ if images and st.button("PROCESS ALL"):
                 img = ImageEnhance.Sharpness(img).enhance(2.5)
                 img = ImageEnhance.Contrast(img).enhance(1.3)
 
-            # preview
+            # preview once
             if not preview:
                 st.image(img, width=200)
                 preview = True
 
-            # compress to KB
-            final_img = compress(img, target_kb)
+            # compress with DPI
+            final = compress(img, target_kb)
 
-            zipf.writestr(f"{prefix}_{i+1}.jpg", final_img)
+            zipf.writestr(f"{prefix}_{i+1}.jpg", final)
 
             progress.progress((i+1)/len(images))
 
