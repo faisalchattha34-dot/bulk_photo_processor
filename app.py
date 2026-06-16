@@ -243,35 +243,52 @@ if images and st.button("PROCESS ALL"):
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
         preview = False
+for i, file in enumerate(images):
 
-        for i, file in enumerate(images):
+    img = Image.open(file)
 
-            img = Image.open(file)
-            if remove_bg:
-                out = remove(img)
-                img = Image.open(io.BytesIO(out)).convert("RGBA")
+    if remove_bg:
+        output = remove(img)
 
-                bg_map = {
-                    "white": (255, 255, 255),
-                    "blue": (0, 102, 255),
-                    "red": (255, 0, 0),
-                    "black": (0, 0, 0)
-                }
+        img = Image.open(io.BytesIO(output)).convert("RGBA")
 
-                background = Image.new(
-                    "RGBA",
-                    img.size,
-                    bg_map.get(bg_color, (255, 255, 255))
-                )
+        bg_map = {
+            "white": (255, 255, 255),
+            "blue": (0, 102, 255),
+            "red": (255, 0, 0),
+            "black": (0, 0, 0)
+        }
 
-                img = Image.alpha_composite(background, img)
-                img = img.convert("RGB")
+        bg = Image.new(
+            "RGBA",
+            img.size,
+            bg_map.get(bg_color, (255, 255, 255))
+        )
 
-            else:
-                img = img.convert("RGB")
+        img = Image.alpha_composite(bg, img).convert("RGB")
 
-            img = img.resize((int(width), int(height)))
-           
+    else:
+        img = img.convert("RGB")
+
+    img = img.resize((int(width), int(height)))
+
+    if enhance:
+        img = ImageEnhance.Sharpness(img).enhance(2.5)
+        img = ImageEnhance.Contrast(img).enhance(1.3)
+        img = ImageEnhance.Brightness(img).enhance(1.05)
+        img = img.filter(ImageFilter.UnsharpMask(2,150,3))
+
+    if not preview:
+        st.image(img, width=200)
+        preview = True
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    buf.seek(0)
+
+    zipf.writestr(f"{prefix}_{i+1}.jpg", buf.getvalue())
+
+    progress.progress((i+1)/len(images))
 
 
             if enhance:
