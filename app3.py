@@ -7,6 +7,7 @@ import json
 import hashlib
 from datetime import datetime
 from streamlit_cookies_manager import EncryptedCookieManager
+import numpy as np
 
 # =========================
 # CONFIG
@@ -64,11 +65,8 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# LOGIN SYSTEM
+# AUTO LOGIN
 # =========================
-def hash_pass(p):
-    return hashlib.sha256(p.encode()).hexdigest()
-
 def restore_login():
     saved = cookies.get("user")
     if saved:
@@ -78,6 +76,12 @@ def restore_login():
 
 if st.session_state.user is None:
     restore_login()
+
+# =========================
+# AUTH
+# =========================
+def hash_pass(p):
+    return hashlib.sha256(p.encode()).hexdigest()
 
 def login():
     st.title("🔐 Login")
@@ -154,14 +158,14 @@ if not st.session_state.user:
 # =========================
 user = st.session_state.user
 
-st.title("📸 BULK PHOTO SaaS FINAL SYSTEM")
+st.title("📸 BULK PHOTO SAAS FINAL SYSTEM")
 st.success(f"Welcome {user}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# UPLOAD + CAMERA
+# UPLOAD + SMALL CAMERA UI (UPDATED)
 # =========================
 st.subheader("Upload / Camera")
 
@@ -181,7 +185,7 @@ if camera:
     images.append(camera)
 
 # =========================
-# PRESETS
+# SETTINGS
 # =========================
 preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
@@ -198,12 +202,8 @@ w, h = sizes[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-# =========================
-# SETTINGS
-# =========================
 bg_color = st.selectbox("Background Color", ["none","white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300,600])
 
 remove_bg = st.checkbox("Remove BG", True)
 enhance = st.checkbox("AI Enhance", True)
@@ -211,58 +211,25 @@ enhance = st.checkbox("AI Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# NEW: SIZE LIMIT SYSTEM (ADDED)
+# DPI (CUSTOM + PRESET)
 # =========================
-st.subheader("📦 Size Compression Control (NEW)")
+st.subheader("DPI Settings")
 
-size_mode = st.selectbox(
-    "Compression Mode",
-    ["OFF", "Low (200-500KB)", "Medium (100-200KB)", "Ultra (10-50KB)", "Custom KB"]
-)
+dpi_mode = st.radio("DPI Mode", ["Preset", "Custom"], horizontal=True)
 
-custom_kb = None
-
-if size_mode == "Custom KB":
-    custom_kb = st.number_input("Target KB", min_value=5, max_value=2000, value=100)
-
-def smart_compress(img, target_kb):
-    quality = 95
-    while quality > 10:
-        buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=quality)
-        size_kb = len(buffer.getvalue()) / 1024
-
-        if target_kb and size_kb <= target_kb:
-            buffer.seek(0)
-            return buffer
-
-        quality -= 5
-
-    buffer.seek(0)
-    return buffer
-
-def get_target_kb():
-    if size_mode == "OFF":
-        return None
-    if size_mode == "Low (200-500KB)":
-        return 500
-    if size_mode == "Medium (100-200KB)":
-        return 200
-    if size_mode == "Ultra (10-50KB)":
-        return 50
-    if size_mode == "Custom KB":
-        return custom_kb
-    return None
+if dpi_mode == "Preset":
+    dpi = st.selectbox("Select DPI", [72,150,300,600])
+else:
+    dpi = st.number_input("Enter DPI", min_value=10, max_value=5000, value=300)
 
 # =========================
 # ENHANCE
 # =========================
 def enhance_img(img):
-    img = img.resize((int(img.width*1.2), int(img.height*1.2)), Image.LANCZOS)
-    img = ImageEnhance.Sharpness(img).enhance(3.5)
-    img = ImageEnhance.Contrast(img).enhance(1.6)
-    img = ImageEnhance.Brightness(img).enhance(1.08)
-    img = img.filter(ImageFilter.UnsharpMask(2.5,220,2))
+    img = ImageEnhance.Sharpness(img).enhance(3.0)
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Brightness(img).enhance(1.1)
+    img = img.filter(ImageFilter.UnsharpMask(2,200,3))
     return img
 
 # =========================
@@ -272,9 +239,8 @@ if images and st.button("PROCESS"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
-    preview_area = st.empty()
 
-    target_kb = get_target_kb()
+    preview_area = st.empty()
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
@@ -283,7 +249,7 @@ if images and st.button("PROCESS"):
             img = Image.open(file)
 
             if remove_bg:
-                img = Image.open(io.BytesIO(remove(img))).convert("RGBA")
+                img = remove(img).convert("RGBA")
             else:
                 img = img.convert("RGB")
 
@@ -301,15 +267,12 @@ if images and st.button("PROCESS"):
             if img.mode != "RGB":
                 img = img.convert("RGB")
 
+            # 🔥 LIVE PREVIEW AFTER PROCESS
             preview_area.image(img, caption=f"Processed {i+1}", width=220)
 
             buffer = io.BytesIO()
-
-            if target_kb:
-                buffer = smart_compress(img, target_kb)
-            else:
-                img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
-                buffer.seek(0)
+            img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
+            buffer.seek(0)
 
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
 
@@ -330,10 +293,10 @@ if images and st.button("PROCESS"):
     )
 
 # =========================
-# HISTORY
+# HISTORY (BEAUTIFUL UI)
 # =========================
 st.divider()
-st.subheader("📊 History")
+st.subheader("📊 History (User Activity)")
 
 if not st.session_state.history:
     st.info("No history yet")
