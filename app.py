@@ -223,44 +223,46 @@ enhance = st.checkbox("Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# DPI
 # =========================
-# DPI + COMPRESSION SETTINGS (UPDATED)
+# DPI CONTROL (INDEPENDENT)
 # =========================
-st.subheader("DPI & Compression Settings")
+st.subheader("DPI Settings")
 
 dpi_mode = st.radio("DPI Mode", ["Preset", "Manual"], horizontal=True)
 
 if dpi_mode == "Preset":
-    dpi = st.selectbox("Select DPI", [72,150,300,600])
+    dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
 else:
     dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
-# User chooses unit
+# =========================
+# COMPRESSION CONTROL (INDEPENDENT)
+# =========================
+st.subheader("Compression Settings")
+
 size_unit = st.selectbox("Select Size Unit", ["KB", "MB", "GB"])
 
-# User enters target size
 target_size = st.number_input(
     f"Enter Target Size ({size_unit})",
     min_value=1,
     value=100
 )
 
-# Optional: number of images for batch control
 batch_count = st.number_input(
-    "Expected Images Count (for optimization)",
+    "Expected Images Count",
     min_value=1,
     value=1
 )
 
-# Convert everything to KB internally
+# Convert to KB internally
 if size_unit == "KB":
     target_kb = target_size
 elif size_unit == "MB":
     target_kb = target_size * 1024
-else:  # GB
+else:
     target_kb = target_size * 1024 * 1024
 
-st.info(f"Target compression per image: {target_kb} KB")
+st.info(f"Target Size per Image: {target_kb} KB")
+
 # =========================
 # ENHANCE
 # =========================
