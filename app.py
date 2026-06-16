@@ -1,64 +1,84 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 from rembg import remove
 import zipfile
 import io
+import json
 import hashlib
-from datetime import datetime
-from streamlit_cookies_manager import EncryptedCookieManager
 
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Smart Photo SaaS PRO", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS PRO FINAL", layout="wide")
 
 # =========================
-# COOKIE
+# COOKIE (SAFE INIT)
 # =========================
-cookies = EncryptedCookieManager(
-    prefix="photo_saas",
-    password="secure_key_123"
-)
+try:
+    from streamlit_cookies_manager import EncryptedCookieManager
 
-if not cookies.ready():
-    st.stop()
+    cookies = EncryptedCookieManager(
+        prefix="master_saas",
+        password="super_secure_key"
+    )
 
-# =========================
-# USERS (SIMPLE)
-# =========================
-def hash_pass(p):
-    return hashlib.sha256(p.encode()).hexdigest()
+    if not cookies.ready():
+        st.stop()
 
-if "users" not in st.session_state:
-    st.session_state.users = {
-        "admin": {"password": hash_pass("admin123"), "credits": 999},
-        "user": {"password": hash_pass("user123"), "credits": 20}
-    }
-
-users = st.session_state.users
+except:
+    cookies = None
 
 # =========================
-# SESSION
+# DATABASE
 # =========================
+DB_FILE = "users.json"
+
+def load_users():
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {
+            "admin": {"password": hashlib.sha256("admin123".encode()).hexdigest(), "credits": 999},
+            "user": {"password": hashlib.sha256("user123".encode()).hexdigest(), "credits": 50}
+        }
+
+def save_users():
+    with open(DB_FILE, "w") as f:
+        json.dump(st.session_state.USERS, f)
+
+# =========================
+# SESSION INIT (SAFE)
+# =========================
+if "USERS" not in st.session_state:
+    st.session_state.USERS = load_users()
+
 if "user" not in st.session_state:
     st.session_state.user = None
 
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
+USERS = st.session_state.USERS
+
 # =========================
 # LOGIN RESTORE
 # =========================
-def restore():
-    saved = cookies.get("user")
-    if saved in users:
-        st.session_state.user = saved
+def restore_login():
+    if cookies:
+        saved = cookies.get("user")
+        if saved and saved in USERS:
+            st.session_state.user = saved
 
-restore()
+if st.session_state.user is None:
+    restore_login()
 
 # =========================
 # AUTH
 # =========================
+def hash_pass(p):
+    return hashlib.sha256(p.encode()).hexdigest()
+
 def login():
     st.title("🔐 Login")
 
@@ -66,13 +86,14 @@ def login():
     p = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if u in users and users[u]["password"] == hash_pass(p):
+        if u in USERS and USERS[u]["password"] == hash_pass(p):
             st.session_state.user = u
-            cookies["user"] = u
-            cookies.save()
+            if cookies:
+                cookies["user"] = u
+                cookies.save()
             st.rerun()
         else:
-            st.error("Invalid login")
+            st.error("Invalid credentials")
 
     if st.button("Register"):
         st.session_state.page = "register"
@@ -82,14 +103,20 @@ def register():
     st.title("📝 Register")
 
     u = st.text_input("Username")
+    e = st.text_input("Email")
     p = st.text_input("Password", type="password")
 
-    if st.button("Create"):
-        if u in users:
-            st.error("User exists")
+    if st.button("Create Account"):
+        if u in USERS:
+            st.error("User already exists")
         else:
-            users[u] = {"password": hash_pass(p), "credits": 10}
-            st.success("Created")
+            USERS[u] = {
+                "password": hash_pass(p),
+                "email": e,
+                "credits": 20
+            }
+            save_users()
+            st.success("Account created")
             st.session_state.page = "login"
             st.rerun()
 
@@ -103,20 +130,24 @@ if not st.session_state.user:
         login()
     st.stop()
 
-user = st.session_state.user
-
 # =========================
 # DASHBOARD
 # =========================
-st.title("🚀 Smart Photo SaaS PRO")
+user = st.session_state.user
+st.title("🚀 BULK PHOTO SaaS PRO FINAL")
 st.success(f"Welcome {user}")
-st.info(f"Credits: {users[user]['credits']}")
+
+# FIX KeyError SAFE ACCESS
+credits = USERS.get(user, {}).get("credits", 0)
+st.info(f"Credits: {credits}")
 
 # =========================
-# INPUT (UPLOAD + CAMERA)
+# UPLOAD + CAMERA
 # =========================
-files = st.file_uploader("Upload Images", accept_multiple_files=True, type=["png","jpg","jpeg"])
-camera = st.camera_input("Take Photo")
+st.subheader("Upload / Camera")
+
+files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
+camera = st.camera_input("Camera")
 
 images = []
 if files:
@@ -135,7 +166,7 @@ preset_map = {
     "Passport": (300,300),
     "NADRA": (400,400),
     "Job": (300,400),
-    "HD": (1024,1024),
+    "HD": (800,1000),
     "Custom": (300,300)
 }
 
@@ -144,15 +175,15 @@ w, h = preset_map[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
+bg_on = st.checkbox("Background Apply", True)
 bg_color = st.selectbox("Background Color", ["white","blue","red","black"])
-remove_bg = st.checkbox("Remove Background", True)
+
+dpi = st.number_input("DPI", 72, 600, 300)
+
 enhance = st.checkbox("Enhance Image", True)
 
-dpi = st.selectbox("DPI", [72,150,300,600])
-
-# SIZE CONTROL
 size_type = st.selectbox("Size Type", ["KB","MB","GB"])
-target_size = st.number_input("Target Size", value=200)
+target_size = st.number_input("Target Size", 10, 5000, 200)
 
 prefix = st.text_input("File Name", "photo")
 
@@ -164,27 +195,27 @@ bg_map = {
 }
 
 # =========================
-# SIZE CONVERTER
+# SIZE CONVERT
 # =========================
-def size_to_kb(value, typ):
-    if typ == "KB":
+def size_to_kb(value, unit):
+    if unit == "KB":
         return value
-    if typ == "MB":
+    if unit == "MB":
         return value * 1024
-    if typ == "GB":
+    if unit == "GB":
         return value * 1024 * 1024
 
 # =========================
-# COMPRESS FUNCTION
+# COMPRESS
 # =========================
 def compress(img, target_kb):
-    q = 95
-    while q > 10:
+    quality = 95
+    while quality > 10:
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=q, dpi=(dpi, dpi))
-        if len(buf.getvalue()) / 1024 <= target_kb:
+        img.save(buf, format="JPEG", quality=quality, dpi=(dpi, dpi))
+        if len(buf.getvalue())/1024 <= target_kb:
             return buf.getvalue()
-        q -= 5
+        quality -= 5
     return buf.getvalue()
 
 # =========================
@@ -195,48 +226,55 @@ if images and st.button("PROCESS ALL"):
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
 
-    preview = False
+    with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-    for i, file in enumerate(images):
+        preview_done = False
 
-        img = Image.open(file)
+        for i, file in enumerate(images):
 
-        # REMOVE BG
-        if remove_bg:
-            cut = remove(img)
-            img = Image.open(io.BytesIO(cut)).convert("RGBA")
-            bg = Image.new("RGBA", img.size, bg_map[bg_color])
-            img = Image.alpha_composite(bg, img).convert("RGB")
-        else:
-            img = img.convert("RGB")
+            img = Image.open(file)
 
-        # RESIZE
-        img = img.resize((int(width), int(height)))
+            # =========================
+            # BACKGROUND SYSTEM FIXED
+            # =========================
+            if bg_on:
+                try:
+                    cut = remove(img)
+                    img = Image.open(io.BytesIO(cut)).convert("RGBA")
+                except:
+                    img = img.convert("RGBA")
 
-        # ENHANCE
-        if enhance:
-            img = ImageEnhance.Sharpness(img).enhance(2.5)
-            img = ImageEnhance.Contrast(img).enhance(1.3)
-            img = img.filter(ImageFilter.UnsharpMask(2,150,3))
+                bg = Image.new("RGBA", img.size, bg_map[bg_color])
+                img = Image.alpha_composite(bg, img).convert("RGB")
+            else:
+                img = img.convert("RGB")
 
-        # PREVIEW
-        if not preview:
-            st.image(img, width=200)
-            preview = True
+            # resize
+            img = img.resize((int(width), int(height)))
 
-        # COMPRESS
-        final = compress(img, size_to_kb(target_size, size_type))
+            # enhance
+            if enhance:
+                img = ImageEnhance.Sharpness(img).enhance(2.5)
+                img = ImageEnhance.Contrast(img).enhance(1.3)
 
-        zip_buffer = zip_buffer
-        with zipfile.ZipFile(zip_buffer, "a") as zipf:
+            # preview
+            if not preview_done:
+                st.image(img, width=200)
+                preview_done = True
+
+            # size convert
+            kb_target = size_to_kb(target_size, size_type)
+
+            final = compress(img, kb_target)
+
             zipf.writestr(f"{prefix}_{i+1}.jpg", final)
 
-        progress.progress((i+1)/len(images))
+            progress.progress((i+1)/len(images))
 
     st.success("Processing Done")
 
     st.download_button(
         "Download ZIP",
         zip_buffer.getvalue(),
-        file_name="photos.zip"
+        file_name="output.zip"
     )
