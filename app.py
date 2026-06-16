@@ -225,24 +225,19 @@ prefix = st.text_input("File Prefix", "photo")
 # =========================
 # DPI
 # =========================
-# =========================
-# DPI + COMPRESSION (UPGRADE)
+# DPI + COMPRESSION (USER CONTROLLED)
 # =========================
 st.subheader("DPI & Compression Control")
 
-dpi_mode = st.radio("DPI Mode", ["Preset", "Manual"], horizontal=True)
+dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
 
-if dpi_mode == "Preset":
-    dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
-else:
-    dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
-
-compression_mode = st.radio("Compression", ["Auto", "Manual"], horizontal=True)
-
-if compression_mode == "Manual":
-    quality = st.slider("Image Quality (%)", 10, 100, 90)
-else:
-    quality = 90
+# User manually sets compression quality
+quality = st.number_input(
+    "Enter Image Quality (10 = low size, 100 = high quality)",
+    min_value=10,
+    max_value=100,
+    value=90
+)
 # =========================
 # ENHANCE
 # =========================
