@@ -233,14 +233,32 @@ else:
     dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
 
 # =========================
-# COMPRESSION
+# COMPRESSION (FIXED)
 # =========================
 st.subheader("Compression Settings")
 
-quality = 85  # FIXED INTERNAL QUALITY (NO UI CONTROL)
+user_input = st.text_input("Enter Target Size (e.g. 20KB, 5MB, 1GB)", "100KB")
+
+def parse_size(value):
+    value = value.strip().upper()
+
+    if "KB" in value:
+        return float(value.replace("KB","")) * 1024
+    elif "MB" in value:
+        return float(value.replace("MB","")) * 1024 * 1024
+    elif "GB" in value:
+        return float(value.replace("GB","")) * 1024 * 1024 * 1024
+    else:
+        return float(value) * 1024  # default KB
+
+target_bytes = parse_size(user_input)
+
+st.info(f"Target Size per image: {target_bytes/1024:.2f} KB")
+
+quality = 85  # internal stable compression
 
 # =========================
-# ENHANCE FUNCTION
+# ENHANCE
 # =========================
 def enhance_img(img):
     img = ImageEnhance.Sharpness(img).enhance(2.5)
@@ -295,9 +313,6 @@ if images and st.button("PROCESS"):
 
             buffer = io.BytesIO()
 
-            # =========================
-            # FORMAT SAVE FIX
-            # =========================
             fmt = output_format
 
             if fmt == "JPG":
