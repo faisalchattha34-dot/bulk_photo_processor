@@ -110,29 +110,32 @@ def register():
             st.success("Account created")
             st.session_state.page = "login"
             st.rerun()
+            st.markdown("---")
 
+    if st.button("⬅ Back to Login", use_container_width=True):
+        st.session_state.page = "login"
+        st.rerun()
 def login():
     st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Login"):
-            if u in USERS and USERS[u]["password"] == hash_pass(p):
-                st.session_state.user = u
-                cookies["user"] = u
-                cookies.save()
-                st.rerun()
-            else:
-                st.error("Invalid credentials")
-
-    with col2:
-        if st.button("Register"):
-            st.session_state.page = "register"
+    if st.button("Login", use_container_width=True):
+        if u in USERS and USERS[u]["password"] == hash_pass(p):
+            st.session_state.user = u
+            cookies["user"] = u
+            cookies.save()
             st.rerun()
+        else:
+            st.error("Invalid credentials")
+
+    st.markdown("---")
+
+    if st.button("📝 Create New Account", use_container_width=True):
+        st.session_state.page = "register"
+        st.rerun()
+     
 
 def logout():
     cookies["user"] = ""
