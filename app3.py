@@ -9,9 +9,61 @@ from datetime import datetime
 from streamlit_cookies_manager import EncryptedCookieManager
 
 # =========================
-# CONFIG
+# PAGE CONFIG (MODERN UI)
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS FIXED", layout="wide")
+st.set_page_config(
+    page_title="Bulk Photo SaaS PRO",
+    layout="wide",
+    page_icon="📸"
+)
+
+# =========================
+# CUSTOM CSS (SAAS LOOK)
+# =========================
+st.markdown("""
+<style>
+body {
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+}
+
+.main {
+    background-color: transparent;
+}
+
+.block-container {
+    padding: 2rem;
+}
+
+.stButton > button {
+    background: linear-gradient(90deg,#6366f1,#3b82f6);
+    color: white;
+    border-radius: 12px;
+    height: 45px;
+    font-weight: bold;
+    border: none;
+}
+
+.stButton > button:hover {
+    transform: scale(1.02);
+}
+
+.card {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+h1, h2, h3 {
+    color: white;
+}
+
+label {
+    color: #cbd5e1 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =========================
 # COOKIE MANAGER
@@ -69,11 +121,9 @@ USERS = st.session_state.USERS
 def restore_login():
     try:
         saved_user = cookies.get("user")
-        if saved_user:
-            saved_user = str(saved_user).strip()
-            if saved_user in USERS:
-                st.session_state.user = saved_user
-                return True
+        if saved_user and saved_user in USERS:
+            st.session_state.user = saved_user
+            return True
     except:
         pass
     return False
@@ -88,10 +138,11 @@ def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
 
 # =========================
-# LOGIN
+# LOGIN UI (MODERN CARD)
 # =========================
 def login():
-    st.title("🔐 Login")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.title("🔐 Login to Bulk Photo SaaS")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
@@ -109,15 +160,18 @@ def login():
                 st.error("Invalid credentials")
 
     with col2:
-        if st.button("Register"):
+        if st.button("Create Account"):
             st.session_state.page = "register"
             st.rerun()
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
 # =========================
-# REGISTER
+# REGISTER UI
 # =========================
 def register():
-    st.title("📝 Register")
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.title("📝 Create Account")
 
     u = st.text_input("Username")
     e = st.text_input("Email")
@@ -126,10 +180,8 @@ def register():
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("Create Account"):
-            if not u or not e or not p:
-                st.error("All fields required")
-            elif u in USERS:
+        if st.button("Register"):
+            if u in USERS:
                 st.error("User already exists")
             else:
                 USERS[u] = {
@@ -146,6 +198,8 @@ def register():
         if st.button("Back"):
             st.session_state.page = "login"
             st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # LOGOUT
@@ -167,18 +221,28 @@ if not st.session_state.user:
     st.stop()
 
 # =========================
-# DASHBOARD
+# DASHBOARD HEADER
 # =========================
-st.title("📸 BULK PHOTO SaaS FIXED SYSTEM")
-st.success(f"Welcome {st.session_state.user}")
+st.markdown(f"""
+# 📸 Bulk Photo SaaS PRO
+### Welcome back, **{st.session_state.user}**
+""")
 
-if st.button("Logout"):
+col1, col2, col3 = st.columns(3)
+
+col1.markdown("<div class='card'>⚡ Fast Processing</div>", unsafe_allow_html=True)
+col2.markdown("<div class='card'>📁 Bulk Upload</div>", unsafe_allow_html=True)
+col3.markdown("<div class='card'>☁️ ZIP Export</div>", unsafe_allow_html=True)
+
+if st.button("🚪 Logout"):
     logout()
 
+st.divider()
+
 # =========================
-# UPLOAD
+# UPLOAD SECTION
 # =========================
-st.subheader("Upload / Camera")
+st.subheader("📤 Upload Images")
 
 col1, col2 = st.columns(2)
 
@@ -197,6 +261,8 @@ if camera:
 # =========================
 # SETTINGS
 # =========================
+st.subheader("⚙️ Processing Settings")
+
 preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
 
 sizes = {
@@ -208,39 +274,25 @@ sizes = {
 }
 
 w, h = sizes[preset]
-
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
 bg_color = st.selectbox("Background", ["none","white","blue","red","black"])
 output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
 
-remove_bg = st.checkbox("Remove BG", True)
-enhance = st.checkbox("Enhance", True)
+remove_bg = st.checkbox("Remove Background", True)
+enhance = st.checkbox("Enhance Image", True)
 
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# DPI
+# COMPRESSION
 # =========================
-st.subheader("DPI Settings")
+st.subheader("🗜 Compression")
 
-dpi_mode = st.radio("DPI Mode", ["Preset", "Manual"], horizontal=True)
+size_type = st.selectbox("Unit", ["KB","MB","GB"])
+size_value = st.number_input("Target Size", min_value=1, value=100)
 
-if dpi_mode == "Preset":
-    dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
-else:
-    dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
-
-# =========================
-# COMPRESSION (KB/MB/GB FIXED)
-# =========================
-st.subheader("Compression Settings")
-
-size_type = st.selectbox("Select Unit", ["KB", "MB", "GB"])
-size_value = st.number_input("Enter Size", min_value=1, value=100)
-
-# convert to bytes
 if size_type == "KB":
     target_bytes = size_value * 1024
 elif size_type == "MB":
@@ -248,10 +300,10 @@ elif size_type == "MB":
 else:
     target_bytes = size_value * 1024 * 1024 * 1024
 
-st.info(f"Target per image: {target_bytes/1024:.2f} KB")
+st.info(f"Target Size per image: {target_bytes/1024:.2f} KB")
 
 # =========================
-# ENHANCE
+# PROCESS
 # =========================
 def enhance_img(img):
     img = ImageEnhance.Sharpness(img).enhance(2.5)
@@ -266,14 +318,10 @@ color_map = {
     "black": (0,0,0)
 }
 
-# =========================
-# PROCESS
-# =========================
-if images and st.button("PROCESS"):
+if images and st.button("🚀 PROCESS IMAGES"):
 
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
-    preview = st.empty()
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
@@ -299,69 +347,40 @@ if images and st.button("PROCESS"):
 
             img = img.convert("RGB")
 
-            preview.image(img, caption=f"Processed {i+1}", width=200)
-
             buffer = io.BytesIO()
+            quality = 90
 
-            fmt = output_format
-            quality_try = 95
-
-            # =========================
-            # SMART COMPRESSION ENGINE
-            # =========================
-            if fmt == "JPG":
-                img = img.convert("RGB")
-
+            if output_format == "JPG":
                 while True:
                     temp = io.BytesIO()
-                    img.save(temp, format="JPEG", quality=quality_try, dpi=(dpi, dpi), optimize=True)
-
-                    if len(temp.getvalue()) <= target_bytes or quality_try <= 10:
+                    img.save(temp, format="JPEG", quality=quality, optimize=True)
+                    if len(temp.getvalue()) <= target_bytes or quality <= 10:
                         buffer = temp
                         break
+                    quality -= 5
+                name = f"{prefix}_{i+1}.jpg"
 
-                    quality_try -= 5
+            elif output_format == "PNG":
+                img.save(buffer, format="PNG", optimize=True)
+                name = f"{prefix}_{i+1}.png"
 
-                file_name = f"{prefix}_{i+1}.jpg"
-
-            elif fmt == "PNG":
-                img.save(buffer, format="PNG", dpi=(dpi, dpi), optimize=True)
-                file_name = f"{prefix}_{i+1}.png"
-
-            elif fmt == "WEBP":
+            else:
                 while True:
                     temp = io.BytesIO()
-                    img.save(temp, format="WEBP", quality=quality_try, dpi=(dpi, dpi), method=6)
-
-                    if len(temp.getvalue()) <= target_bytes or quality_try <= 10:
+                    img.save(temp, format="WEBP", quality=quality)
+                    if len(temp.getvalue()) <= target_bytes or quality <= 10:
                         buffer = temp
                         break
+                    quality -= 5
+                name = f"{prefix}_{i+1}.webp"
 
-                    quality_try -= 5
-
-                file_name = f"{prefix}_{i+1}.webp"
-
-            buffer.seek(0)
-            zipf.writestr(file_name, buffer.getvalue())
-
+            zipf.writestr(name, buffer.getvalue())
             progress.progress((i+1)/len(images))
 
-    st.success("Processing Done")
+    st.success("Processing Complete 🎉")
 
     st.download_button(
-        "Download ZIP",
+        "⬇ Download ZIP",
         zip_buffer.getvalue(),
-        file_name="processed_images.zip"
+        file_name="bulk_photos.zip"
     )
-
-# =========================
-# HISTORY
-# =========================
-st.divider()
-st.subheader("History")
-
-if not st.session_state.history:
-    st.info("No history yet")
-else:
-    for h in reversed(st.session_state.history):
-        st.write(f"👤 {h['user']} | 📁 {h['files']} files | 🕒 {h['time']}")
