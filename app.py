@@ -64,7 +64,7 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# COOKIE LOGIN RESTORE
+# LOGIN RESTORE
 # =========================
 def restore_login():
     try:
@@ -233,29 +233,22 @@ else:
     dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
 
 # =========================
-# COMPRESSION (FIXED)
+# COMPRESSION (KB/MB/GB FIXED)
 # =========================
 st.subheader("Compression Settings")
 
-user_input = st.text_input("Enter Target Size (e.g. 20KB, 5MB, 1GB)", "100KB")
+size_type = st.selectbox("Select Unit", ["KB", "MB", "GB"])
+size_value = st.number_input("Enter Size", min_value=1, value=100)
 
-def parse_size(value):
-    value = value.strip().upper()
+# convert to bytes
+if size_type == "KB":
+    target_bytes = size_value * 1024
+elif size_type == "MB":
+    target_bytes = size_value * 1024 * 1024
+else:
+    target_bytes = size_value * 1024 * 1024 * 1024
 
-    if "KB" in value:
-        return float(value.replace("KB","")) * 1024
-    elif "MB" in value:
-        return float(value.replace("MB","")) * 1024 * 1024
-    elif "GB" in value:
-        return float(value.replace("GB","")) * 1024 * 1024 * 1024
-    else:
-        return float(value) * 1024  # default KB
-
-target_bytes = parse_size(user_input)
-
-st.info(f"Target Size per image: {target_bytes/1024:.2f} KB")
-
-quality = 85  # internal stable compression
+st.info(f"Target per image: {target_bytes/1024:.2f} KB")
 
 # =========================
 # ENHANCE
@@ -266,9 +259,6 @@ def enhance_img(img):
     img = ImageEnhance.Brightness(img).enhance(1.1)
     return img
 
-# =========================
-# COLOR MAP
-# =========================
 color_map = {
     "white": (255,255,255),
     "blue": (0,0,255),
@@ -314,9 +304,24 @@ if images and st.button("PROCESS"):
             buffer = io.BytesIO()
 
             fmt = output_format
+            quality_try = 95
 
+            # =========================
+            # SMART COMPRESSION ENGINE
+            # =========================
             if fmt == "JPG":
-                img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi), optimize=True)
+                img = img.convert("RGB")
+
+                while True:
+                    temp = io.BytesIO()
+                    img.save(temp, format="JPEG", quality=quality_try, dpi=(dpi, dpi), optimize=True)
+
+                    if len(temp.getvalue()) <= target_bytes or quality_try <= 10:
+                        buffer = temp
+                        break
+
+                    quality_try -= 5
+
                 file_name = f"{prefix}_{i+1}.jpg"
 
             elif fmt == "PNG":
@@ -324,11 +329,19 @@ if images and st.button("PROCESS"):
                 file_name = f"{prefix}_{i+1}.png"
 
             elif fmt == "WEBP":
-                img.save(buffer, format="WEBP", quality=quality, dpi=(dpi, dpi), method=6)
+                while True:
+                    temp = io.BytesIO()
+                    img.save(temp, format="WEBP", quality=quality_try, dpi=(dpi, dpi), method=6)
+
+                    if len(temp.getvalue()) <= target_bytes or quality_try <= 10:
+                        buffer = temp
+                        break
+
+                    quality_try -= 5
+
                 file_name = f"{prefix}_{i+1}.webp"
 
             buffer.seek(0)
-
             zipf.writestr(file_name, buffer.getvalue())
 
             progress.progress((i+1)/len(images))
