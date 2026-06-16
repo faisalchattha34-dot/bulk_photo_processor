@@ -237,19 +237,7 @@ else:
 # =========================
 st.subheader("Compression Settings")
 
-quality = st.slider("JPEG Quality", 10, 100, 85)
-
-size_unit = st.selectbox("Size Unit", ["KB", "MB", "GB"])
-target_size = st.number_input("Target Size", min_value=1, value=100)
-
-if size_unit == "KB":
-    target_kb = target_size
-elif size_unit == "MB":
-    target_kb = target_size * 1024
-else:
-    target_kb = target_size * 1024 * 1024
-
-st.info(f"Target per image: {target_kb} KB")
+quality = 85  # FIXED INTERNAL QUALITY (NO UI CONTROL)
 
 # =========================
 # ENHANCE FUNCTION
@@ -261,7 +249,7 @@ def enhance_img(img):
     return img
 
 # =========================
-# COLOR MAP FIX
+# COLOR MAP
 # =========================
 color_map = {
     "white": (255,255,255),
@@ -306,10 +294,27 @@ if images and st.button("PROCESS"):
             preview.image(img, caption=f"Processed {i+1}", width=200)
 
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi), optimize=True)
+
+            # =========================
+            # FORMAT SAVE FIX
+            # =========================
+            fmt = output_format
+
+            if fmt == "JPG":
+                img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi), optimize=True)
+                file_name = f"{prefix}_{i+1}.jpg"
+
+            elif fmt == "PNG":
+                img.save(buffer, format="PNG", dpi=(dpi, dpi), optimize=True)
+                file_name = f"{prefix}_{i+1}.png"
+
+            elif fmt == "WEBP":
+                img.save(buffer, format="WEBP", quality=quality, dpi=(dpi, dpi), method=6)
+                file_name = f"{prefix}_{i+1}.webp"
+
             buffer.seek(0)
 
-            zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
+            zipf.writestr(file_name, buffer.getvalue())
 
             progress.progress((i+1)/len(images))
 
