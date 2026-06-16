@@ -25,7 +25,7 @@ if not cookies.ready():
     st.stop()
 
 # =========================
-# DATABASE (UNCHANGED)
+# DATABASE
 # =========================
 DB_FILE = "users.json"
 
@@ -52,7 +52,7 @@ def save_users():
         json.dump(st.session_state.USERS, f)
 
 # =========================
-# SESSION INIT (UNCHANGED)
+# SESSION INIT
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = load_users()
@@ -69,20 +69,18 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# COOKIE RESTORE FIX ONLY
+# RESTORE LOGIN
 # =========================
 def restore_login():
     saved = cookies.get("user")
-    if saved:
-        saved = str(saved).strip()
-    if saved and saved in USERS:
+    if saved and str(saved).strip() in USERS:
         st.session_state.user = saved
 
 if st.session_state.user is None:
     restore_login()
 
 # =========================
-# AUTH (UNCHANGED LOGIC)
+# AUTH FUNCTIONS
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -110,18 +108,18 @@ def register():
             st.success("Account created")
             st.session_state.page = "login"
             st.rerun()
-            st.markdown("---")
 
-    if st.button("⬅ Back to Login", use_container_width=True):
+    if st.button("⬅ Back to Login"):
         st.session_state.page = "login"
         st.rerun()
+
 def login():
     st.title("🔐 Login")
 
     u = st.text_input("Username")
     p = st.text_input("Password", type="password")
 
-    if st.button("Login", use_container_width=True):
+    if st.button("Login"):
         if u in USERS and USERS[u]["password"] == hash_pass(p):
             st.session_state.user = u
             cookies["user"] = u
@@ -132,10 +130,9 @@ def login():
 
     st.markdown("---")
 
-    if st.button("📝 Create New Account", use_container_width=True):
+    if st.button("📝 Create Account"):
         st.session_state.page = "register"
         st.rerun()
-     
 
 def logout():
     cookies["user"] = ""
@@ -144,7 +141,7 @@ def logout():
     st.rerun()
 
 # =========================
-# ROUTING (UNCHANGED)
+# ROUTING
 # =========================
 if not st.session_state.user:
     if st.session_state.page == "register":
@@ -157,7 +154,8 @@ if not st.session_state.user:
 # DASHBOARD
 # =========================
 user = st.session_state.user
-st.title("🚀 BULK PHOTO SaaS PRO (STABLE FIX)")
+
+st.title("🚀 BULK PHOTO SaaS PRO (STABLE)")
 st.success(f"Welcome {user}")
 
 st.info(f"Credits: {USERS[user]['credits']}")
@@ -166,7 +164,7 @@ if st.button("Logout"):
     logout()
 
 # =========================
-# CREDIT SYSTEM (UNCHANGED)
+# CREDIT SYSTEM
 # =========================
 def use_credit(n):
     if USERS[user]["credits"] >= n:
@@ -176,7 +174,7 @@ def use_credit(n):
     return False
 
 # =========================
-# UPLOAD + CAMERA (UNCHANGED)
+# UPLOAD
 # =========================
 st.subheader("Upload / Camera")
 
@@ -185,13 +183,12 @@ col1, col2 = st.columns(2)
 with col1:
     files = st.file_uploader(
         "Upload Images",
-        type=["png","jpg","jpeg","webp"],
+        type=["png", "jpg", "jpeg", "webp"],
         accept_multiple_files=True
     )
 
 with col2:
-    with st.expander("📷 Camera Capture", expanded=False):
-        camera = st.camera_input("Take Photo")
+    camera = st.camera_input("Take Photo")
 
 images = []
 if files:
@@ -200,18 +197,18 @@ if camera:
     images.append(camera)
 
 # =========================
-# SETTINGS (ALL RESTORED)
+# SETTINGS
 # =========================
 st.subheader("Settings")
 
-preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
+preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "Job", "HD"])
 
 preset_map = {
-    "Passport": (300,300),
-    "NADRA": (400,400),
-    "Job": (300,400),
-    "HD": (800,1000),
-    "Custom": (300,300)
+    "Passport": (300, 300),
+    "NADRA": (400, 400),
+    "Job": (300, 400),
+    "HD": (800, 1000),
+    "Custom": (300, 300)
 }
 
 w, h = preset_map[preset]
@@ -219,17 +216,14 @@ w, h = preset_map[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-bg_color = st.selectbox("Background", ["white","blue","red","black"])
-output_format = st.selectbox("Format", ["JPG","PNG","WEBP"])
-dpi = st.selectbox("DPI", [72,150,300])
-
-remove_bg = st.checkbox("Remove Background (AI)", True)
+bg_color = st.selectbox("Background", ["white", "blue", "red", "black"])
+remove_bg = st.checkbox("Remove Background", True)
 enhance = st.checkbox("Enhance Image", True)
 
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# PROCESS (UNCHANGED LOGIC)
+# PROCESS
 # =========================
 if images and st.button("PROCESS ALL"):
 
@@ -240,62 +234,36 @@ if images and st.button("PROCESS ALL"):
     zip_buffer = io.BytesIO()
     progress = st.progress(0)
 
+    bg_map = {
+        "white": (255, 255, 255),
+        "blue": (0, 102, 255),
+        "red": (255, 0, 0),
+        "black": (0, 0, 0)
+    }
+
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
         preview = False
-for i, file in enumerate(images):
 
-    img = Image.open(file)
+        for i, file in enumerate(images):
 
-    if remove_bg:
-        output = remove(img)
+            img = Image.open(file)
 
-        img = Image.open(io.BytesIO(output)).convert("RGBA")
+            if remove_bg:
+                output = remove(img)
+                img = Image.open(io.BytesIO(output)).convert("RGBA")
 
-        bg_map = {
-            "white": (255, 255, 255),
-            "blue": (0, 102, 255),
-            "red": (255, 0, 0),
-            "black": (0, 0, 0)
-        }
+                bg = Image.new("RGBA", img.size, bg_map.get(bg_color))
+                img = Image.alpha_composite(bg, img).convert("RGB")
+            else:
+                img = img.convert("RGB")
 
-        bg = Image.new(
-            "RGBA",
-            img.size,
-            bg_map.get(bg_color, (255, 255, 255))
-        )
-
-        img = Image.alpha_composite(bg, img).convert("RGB")
-
-    else:
-        img = img.convert("RGB")
-
-    img = img.resize((int(width), int(height)))
-
-    if enhance:
-        img = ImageEnhance.Sharpness(img).enhance(2.5)
-        img = ImageEnhance.Contrast(img).enhance(1.3)
-        img = ImageEnhance.Brightness(img).enhance(1.05)
-        img = img.filter(ImageFilter.UnsharpMask(2,150,3))
-
-    if not preview:
-        st.image(img, width=200)
-        preview = True
-
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG")
-    buf.seek(0)
-
-    zipf.writestr(f"{prefix}_{i+1}.jpg", buf.getvalue())
-
-    progress.progress((i+1)/len(images))
-
+            img = img.resize((int(width), int(height)))
 
             if enhance:
                 img = ImageEnhance.Sharpness(img).enhance(2.5)
                 img = ImageEnhance.Contrast(img).enhance(1.3)
                 img = ImageEnhance.Brightness(img).enhance(1.05)
-                img = img.filter(ImageFilter.UnsharpMask(2,150,3))
 
             if not preview:
                 st.image(img, width=200)
@@ -324,10 +292,10 @@ for i, file in enumerate(images):
     )
 
 # =========================
-# HISTORY (UNCHANGED)
+# HISTORY
 # =========================
 st.divider()
 st.subheader("History")
 
 for h in reversed(st.session_state.history):
-    st.write(h) 
+    st.write(h)
