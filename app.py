@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 from rembg import remove
 import zipfile
 import io
@@ -64,15 +64,13 @@ if "history" not in st.session_state:
 USERS = st.session_state.USERS
 
 # =========================
-# COOKIE LOGIN RESTORE (FIXED)
+# COOKIE LOGIN RESTORE
 # =========================
 def restore_login():
     try:
         saved_user = cookies.get("user")
-
         if saved_user:
             saved_user = str(saved_user).strip()
-
             if saved_user in USERS:
                 st.session_state.user = saved_user
                 return True
@@ -84,7 +82,7 @@ if st.session_state.user is None:
     restore_login()
 
 # =========================
-# PASSWORD HASH
+# HASH
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -171,14 +169,14 @@ if not st.session_state.user:
 # =========================
 # DASHBOARD
 # =========================
-st.title("📸 BULK PHOTO SAAS FIXED SYSTEM")
+st.title("📸 BULK PHOTO SaaS FIXED SYSTEM")
 st.success(f"Welcome {st.session_state.user}")
 
 if st.button("Logout"):
     logout()
 
 # =========================
-# UPLOAD / CAMERA
+# UPLOAD
 # =========================
 st.subheader("Upload / Camera")
 
@@ -223,8 +221,7 @@ enhance = st.checkbox("Enhance", True)
 prefix = st.text_input("File Prefix", "photo")
 
 # =========================
-# =========================
-# DPI CONTROL (INDEPENDENT)
+# DPI
 # =========================
 st.subheader("DPI Settings")
 
@@ -234,26 +231,17 @@ if dpi_mode == "Preset":
     dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
 else:
     dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
+
 # =========================
-# COMPRESSION CONTROL (INDEPENDENT)
+# COMPRESSION
 # =========================
 st.subheader("Compression Settings")
 
-size_unit = st.selectbox("Select Size Unit", ["KB", "MB", "GB"])
+quality = st.slider("JPEG Quality", 10, 100, 85)
 
-target_size = st.number_input(
-    f"Enter Target Size ({size_unit})",
-    min_value=1,
-    value=100
-)
+size_unit = st.selectbox("Size Unit", ["KB", "MB", "GB"])
+target_size = st.number_input("Target Size", min_value=1, value=100)
 
-batch_count = st.number_input(
-    "Expected Images Count",
-    min_value=1,
-    value=1
-)
-
-# Convert to KB internally
 if size_unit == "KB":
     target_kb = target_size
 elif size_unit == "MB":
@@ -261,16 +249,26 @@ elif size_unit == "MB":
 else:
     target_kb = target_size * 1024 * 1024
 
-st.info(f"Target Size per Image: {target_kb} KB")
+st.info(f"Target per image: {target_kb} KB")
 
 # =========================
-# ENHANCE
+# ENHANCE FUNCTION
 # =========================
 def enhance_img(img):
     img = ImageEnhance.Sharpness(img).enhance(2.5)
     img = ImageEnhance.Contrast(img).enhance(1.3)
     img = ImageEnhance.Brightness(img).enhance(1.1)
     return img
+
+# =========================
+# COLOR MAP FIX
+# =========================
+color_map = {
+    "white": (255,255,255),
+    "blue": (0,0,255),
+    "red": (255,0,0),
+    "black": (0,0,0)
+}
 
 # =========================
 # PROCESS
@@ -298,7 +296,7 @@ if images and st.button("PROCESS"):
                 img = enhance_img(img)
 
             if bg_color != "none":
-                base = Image.new("RGB", img.size, bg_color)
+                base = Image.new("RGB", img.size, color_map[bg_color])
                 if img.mode == "RGBA":
                     base.paste(img, mask=img.split()[-1])
                 img = base
@@ -331,6 +329,6 @@ st.subheader("History")
 
 if not st.session_state.history:
     st.info("No history yet")
-
-for h in reversed(st.session_state.history):
-    st.write(f"👤 {h['user']} | 📁 {h['files']} files | 🕒 {h['time']}")
+else:
+    for h in reversed(st.session_state.history):
+        st.write(f"👤 {h['user']} | 📁 {h['files']} files | 🕒 {h['time']}")
