@@ -1,32 +1,28 @@
 import streamlit as st
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
 from rembg import remove
 import zipfile
 import io
 import json
 import hashlib
+from datetime import datetime
+from streamlit_cookies_manager import EncryptedCookieManager
 
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Bulk Photo SaaS PRO FINAL", layout="wide")
+st.set_page_config(page_title="Bulk Photo SaaS PRO", layout="wide")
 
 # =========================
-# COOKIE (SAFE INIT)
+# COOKIE SYSTEM
 # =========================
-try:
-    from streamlit_cookies_manager import EncryptedCookieManager
+cookies = EncryptedCookieManager(
+    prefix="master_saas",
+    password="super_secure_key"
+)
 
-    cookies = EncryptedCookieManager(
-        prefix="master_saas",
-        password="super_secure_key"
-    )
-
-    if not cookies.ready():
-        st.stop()
-
-except:
-    cookies = None
+if not cookies.ready():
+    st.stop()
 
 # =========================
 # DATABASE
@@ -39,8 +35,8 @@ def load_users():
             return json.load(f)
     except:
         return {
-            "admin": {"password": hashlib.sha256("admin123".encode()).hexdigest(), "credits": 999},
-            "user": {"password": hashlib.sha256("user123".encode()).hexdigest(), "credits": 50}
+            "admin": {"password": hashlib.sha256("admin123".encode()).hexdigest()},
+            "user": {"password": hashlib.sha256("user123".encode()).hexdigest()}
         }
 
 def save_users():
@@ -48,7 +44,7 @@ def save_users():
         json.dump(st.session_state.USERS, f)
 
 # =========================
-# SESSION INIT (SAFE)
+# SESSION
 # =========================
 if "USERS" not in st.session_state:
     st.session_state.USERS = load_users()
@@ -59,22 +55,24 @@ if "user" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "login"
 
+if "history" not in st.session_state:
+    st.session_state.history = []
+
 USERS = st.session_state.USERS
 
 # =========================
-# LOGIN RESTORE
+# COOKIE RESTORE
 # =========================
 def restore_login():
-    if cookies:
-        saved = cookies.get("user")
-        if saved and saved in USERS:
-            st.session_state.user = saved
+    saved = cookies.get("user")
+    if saved and saved in USERS:
+        st.session_state.user = saved
 
 if st.session_state.user is None:
     restore_login()
 
 # =========================
-# AUTH
+# AUTH FUNCTIONS
 # =========================
 def hash_pass(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -88,9 +86,8 @@ def login():
     if st.button("Login"):
         if u in USERS and USERS[u]["password"] == hash_pass(p):
             st.session_state.user = u
-            if cookies:
-                cookies["user"] = u
-                cookies.save()
+            cookies["user"] = u
+            cookies.save()
             st.rerun()
         else:
             st.error("Invalid credentials")
@@ -112,8 +109,7 @@ def register():
         else:
             USERS[u] = {
                 "password": hash_pass(p),
-                "email": e,
-                "credits": 20
+                "email": e
             }
             save_users()
             st.success("Account created")
@@ -134,19 +130,26 @@ if not st.session_state.user:
 # DASHBOARD
 # =========================
 user = st.session_state.user
-st.title("🚀 BULK PHOTO SaaS PRO FINAL")
+st.title("🚀 BULK PHOTO SaaS PRO")
 st.success(f"Welcome {user}")
 
-# FIX KeyError SAFE ACCESS
-credits = USERS.get(user, {}).get("credits", 0)
-st.info(f"Credits: {credits}")
+if st.button("Logout"):
+    cookies["user"] = ""
+    cookies.save()
+    st.session_state.user = None
+    st.rerun()
 
 # =========================
 # UPLOAD + CAMERA
 # =========================
 st.subheader("Upload / Camera")
 
-files = st.file_uploader("Upload Images", type=["png","jpg","jpeg","webp"], accept_multiple_files=True)
+files = st.file_uploader(
+    "Upload Images",
+    type=["png", "jpg", "jpeg", "webp"],
+    accept_multiple_files=True
+)
+
 camera = st.camera_input("Camera")
 
 images = []
@@ -160,14 +163,14 @@ if camera:
 # =========================
 st.subheader("Settings")
 
-preset = st.selectbox("Preset", ["Custom","Passport","NADRA","Job","HD"])
+preset = st.selectbox("Preset", ["Custom", "Passport", "NADRA", "Job", "HD"])
 
 preset_map = {
-    "Passport": (300,300),
-    "NADRA": (400,400),
-    "Job": (300,400),
-    "HD": (800,1000),
-    "Custom": (300,300)
+    "Passport": (300, 300),
+    "NADRA": (400, 400),
+    "Job": (300, 400),
+    "HD": (800, 1000),
+    "Custom": (300, 300)
 }
 
 w, h = preset_map[preset]
@@ -175,48 +178,20 @@ w, h = preset_map[preset]
 width = st.number_input("Width", value=w)
 height = st.number_input("Height", value=h)
 
-bg_on = st.checkbox("Background Apply", True)
-bg_color = st.selectbox("Background Color", ["white","blue","red","black"])
+bg_color = st.selectbox("Background", ["white", "blue", "red", "black"])
+dpi = st.selectbox("DPI", [72, 150, 300])
 
-dpi = st.number_input("DPI", 72, 600, 300)
-
+remove_bg = st.checkbox("Remove Background", True)
 enhance = st.checkbox("Enhance Image", True)
-
-size_type = st.selectbox("Size Type", ["KB","MB","GB"])
-target_size = st.number_input("Target Size", 10, 5000, 200)
 
 prefix = st.text_input("File Name", "photo")
 
 bg_map = {
-    "white": (255,255,255),
-    "blue": (0,102,255),
-    "red": (255,0,0),
-    "black": (0,0,0)
+    "white": (255, 255, 255),
+    "blue": (0, 102, 255),
+    "red": (255, 0, 0),
+    "black": (0, 0, 0)
 }
-
-# =========================
-# SIZE CONVERT
-# =========================
-def size_to_kb(value, unit):
-    if unit == "KB":
-        return value
-    if unit == "MB":
-        return value * 1024
-    if unit == "GB":
-        return value * 1024 * 1024
-
-# =========================
-# COMPRESS
-# =========================
-def compress(img, target_kb):
-    quality = 95
-    while quality > 10:
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=quality, dpi=(dpi, dpi))
-        if len(buf.getvalue())/1024 <= target_kb:
-            return buf.getvalue()
-        quality -= 5
-    return buf.getvalue()
 
 # =========================
 # PROCESS
@@ -228,16 +203,14 @@ if images and st.button("PROCESS ALL"):
 
     with zipfile.ZipFile(zip_buffer, "w") as zipf:
 
-        preview_done = False
+        preview = False
 
         for i, file in enumerate(images):
 
             img = Image.open(file)
 
-            # =========================
-            # BACKGROUND SYSTEM FIXED
-            # =========================
-            if bg_on:
+            # background remove
+            if remove_bg:
                 try:
                     cut = remove(img)
                     img = Image.open(io.BytesIO(cut)).convert("RGBA")
@@ -249,27 +222,24 @@ if images and st.button("PROCESS ALL"):
             else:
                 img = img.convert("RGB")
 
-            # resize
             img = img.resize((int(width), int(height)))
 
-            # enhance
             if enhance:
                 img = ImageEnhance.Sharpness(img).enhance(2.5)
                 img = ImageEnhance.Contrast(img).enhance(1.3)
+                img = img.filter(ImageFilter.UnsharpMask(2, 150, 3))
 
-            # preview
-            if not preview_done:
+            if not preview:
                 st.image(img, width=200)
-                preview_done = True
+                preview = True
 
-            # size convert
-            kb_target = size_to_kb(target_size, size_type)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG")
+            buf.seek(0)
 
-            final = compress(img, kb_target)
+            zipf.writestr(f"{prefix}_{i+1}.jpg", buf.getvalue())
 
-            zipf.writestr(f"{prefix}_{i+1}.jpg", final)
-
-            progress.progress((i+1)/len(images))
+            progress.progress((i + 1) / len(images))
 
     st.success("Processing Done")
 
@@ -278,3 +248,12 @@ if images and st.button("PROCESS ALL"):
         zip_buffer.getvalue(),
         file_name="output.zip"
     )
+
+# =========================
+# HISTORY
+# =========================
+st.divider()
+st.subheader("History")
+
+for h in st.session_state.history:
+    st.write(h)
