@@ -225,9 +225,24 @@ prefix = st.text_input("File Prefix", "photo")
 # =========================
 # DPI
 # =========================
-st.subheader("DPI")
-dpi = st.selectbox("Select DPI", [72,150,300,600])
+# =========================
+# DPI + COMPRESSION (UPGRADE)
+# =========================
+st.subheader("DPI & Compression Control")
 
+dpi_mode = st.radio("DPI Mode", ["Preset", "Manual"], horizontal=True)
+
+if dpi_mode == "Preset":
+    dpi = st.selectbox("Select DPI", [72, 150, 300, 600])
+else:
+    dpi = st.number_input("Enter Custom DPI", min_value=10, max_value=5000, value=300)
+
+compression_mode = st.radio("Compression", ["Auto", "Manual"], horizontal=True)
+
+if compression_mode == "Manual":
+    quality = st.slider("Image Quality (%)", 10, 100, 90)
+else:
+    quality = 90
 # =========================
 # ENHANCE
 # =========================
@@ -273,7 +288,7 @@ if images and st.button("PROCESS"):
             preview.image(img, caption=f"Processed {i+1}", width=200)
 
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=90, dpi=(dpi, dpi))
+            img.save(buffer, format="JPEG", quality=quality, dpi=(dpi, dpi), optimize=True)
             buffer.seek(0)
 
             zipf.writestr(f"{prefix}_{i+1}.jpg", buffer.getvalue())
